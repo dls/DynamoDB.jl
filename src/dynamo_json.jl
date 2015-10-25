@@ -83,3 +83,9 @@ function value_from_attributes(hash :: Dict)
         error("Unknown datatype value in DynamoDB typed JSON value: $ty")
     end
 end
+
+function value_from_attributes(ty :: Type, typed_json :: Dict)
+    vals = value_from_attributes(typed_json)
+    init_vals = [vals[string(e)] for e=fieldnames(ty)]
+    ty(init_vals...)
+end

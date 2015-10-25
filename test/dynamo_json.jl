@@ -1,4 +1,10 @@
-# write your own tests here
+#  _____ _____ ____ _____ ____        ____        ____  ___   ___  ____
+# |_   _| ____/ ___|_   _/ ___|      |  _ \      / ___|/ _ \ / _ \|  _ \
+#   | | |  _| \___ \ | | \___ \ _____| |_) |____| |  _| | | | | | | | | |
+#   | | | |___ ___) || |  ___) |_____|  _ <_____| |_| | |_| | |_| | |_| |
+#   |_| |_____|____/ |_| |____/      |_| \_\     \____|\___/ \___/|____/
+
+
 
 include("../src/dynamo_json.jl")
 
@@ -37,7 +43,7 @@ res = null_or_val(Set(["1", "2", "3"]))
 
 @test null_or_val(Dict("four" => 3, 7 => 11)) == Dict("M"=>Dict("four"=>Dict("N"=>3),"7"=>Dict("N"=>11)))
 
-type Foo
+immutable Foo
     a
     b
 end
@@ -75,3 +81,7 @@ check_round_trip(Set(["1", "2", "3"]))
 
 @test value_from_attributes(null_or_val(Dict("four" => 3, 7 => 11))) == Dict("four" => 3, "7" => 11)
 @test value_from_attributes(null_or_val(Foo(3, "fourty"))) == Dict("a"=>3,"b"=>"fourty")
+
+res = value_from_attributes(Foo, null_or_val(Foo(3, "fourty")))
+@test res.a == 3
+@test res.b == "fourty"
