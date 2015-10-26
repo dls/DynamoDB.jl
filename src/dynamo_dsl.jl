@@ -161,6 +161,7 @@ import Base.!=
 !=(lhs :: CEVal, rhs) = CEBinaryOp("<>", lhs, value_or_literal(rhs))
 !=(lhs, rhs :: CEVal) = CEBinaryOp("<>", value_or_literal(lhs), rhs)
 
+and(lhs :: CETrue, rhs :: CETrue) = lhs
 and(lhs :: CEBoolean, rhs :: CETrue) = lhs
 and(lhs :: CETrue, rhs :: CEBoolean) = rhs
 and(lhs :: CEBoolean, rhs :: CEBoolean) = CEBinaryOp("AND", lhs, rhs)
@@ -168,8 +169,9 @@ and(lhs :: DynamoReference, rhs :: CEBoolean) = CEBinaryOp("AND", lhs, rhs)
 and(lhs :: CEBoolean, rhs :: DynamoReference) = CEBinaryOp("AND", lhs, rhs)
 and(lhs :: DynamoReference, rhs :: DynamoReference) = CEBinaryOp("AND", lhs, rhs)
 
-or(lhs :: CEBoolean, rhs :: CETrue) = rhs
+or(lhs :: CETrue, rhs :: CETrue) = lhs
 or(lhs :: CETrue, rhs :: CEBoolean) = lhs
+or(lhs :: CEBoolean, rhs :: CETrue) = rhs
 or(lhs :: CEBoolean, rhs :: CEBoolean) = CEBinaryOp("OR", lhs, rhs)
 or(lhs :: DynamoReference, rhs :: CEBoolean) = CEBinaryOp("OR", lhs, rhs)
 or(lhs :: CEBoolean, rhs :: DynamoReference) = CEBinaryOp("OR", lhs, rhs)
@@ -225,13 +227,13 @@ immutable DefaultValue <: DUFnVal
     attr :: DynamoReference
     val
 end
-get_or_else(attr :: DynamoReference, val) = DefaultValue(attr, val)
+get_or_else(attr :: DynamoReference, val) = DefaultValue(attr, value_or_literal(val))
 
 immutable ListAppend <: DynamoUpdateExpression
     attr :: DynamoReference
     val
 end
-append(attr :: DynamoReference, val) = ListAppend(attr, value_or_literal(val))
+append_to_list(attr :: DynamoReference, val) = ListAppend(attr, value_or_literal(val))
 
 immutable AssignExpression <: DynamoUpdateExpression
     attr :: DynamoReference
@@ -243,18 +245,18 @@ immutable SetAddExpression <: DynamoUpdateExpression
     attr :: DynamoReference
     val
 end
-set_add(attr :: DynamoAttribute, val) = SetAddExpression(attr, value_or_literal(val))
+add_to_set(attr :: DynamoAttribute, val) = SetAddExpression(attr, value_or_literal(val))
 
 immutable SetRemoveExpression <: DynamoUpdateExpression
     attr :: DynamoReference
     val
 end
-set_remove(attr :: DynamoReference) = SetRemoveExpression(attr, value_or_literal(val))
+remove_from_set(attr :: DynamoReference, val) = SetRemoveExpression(attr, value_or_literal(val))
 
 immutable DeleteExpression <: DynamoUpdateExpression
     attr :: DynamoReference
 end
-remove(attr :: DynamoReference) = DeleteExpression(attr)
+delete(attr :: DynamoReference) = DeleteExpression(attr)
 
 
 
@@ -320,25 +322,40 @@ serialize_expression(expr :: CEBoolean, refs = refs_tracker()) =
 
 
 
-write_expression(w :: UpdateWriter, v :: DefaultValue) =
-    "if_not_exists($(write_expression(w.refs, v.attr)), $(write_expression(w.refs, v.val)))"
+write_expression(w :: DynamoAttrAndValReferences, v :: DefaultValue) =
+    "if_not_exists($(write_expression(w, v.attr)), $(write_expression(w, v.val)))"
 write_update(w :: UpdateWriter, v :: ListAppend) =
-    push!(w.sets, "$(write_expression(w, v.attr)) = list_append($(write_expression(w, v.attr)), $(add_val(v.val)))")
+    push!(w.sets, "$(write_expression(w.refs, v.attr)) = list_append($(write_expression(w.refs, v.attr)), $(write_expression(w.refs, v.val)))")
 write_update(w :: UpdateWriter, v :: AssignExpression) =
-    push!(w.sets, "$(write_expression(v.attr)) = $(write_expression(v.val))")
+    push!(w.sets, "$(write_expression(w.refs, v.attr)) = $(write_expression(w.refs, v.val))")
 write_update(w :: UpdateWriter, v :: SetAddExpression) =
-    push!(w.adds, "$(write_expression(v.attr)) $(write_expression(v.val))")
+    push!(w.adds, "$(write_expression(w.refs, v.attr)) $(write_expression(w.refs, v.val))")
 write_update(w :: UpdateWriter, v :: SetRemoveExpression) =
-    push!(w.deletes, "$(write_expression(v.attr)) $(write_expression(v.val))")
+    push!(w.deletes, "$(write_expression(w.refs, v.attr)) $(write_expression(w.refs, v.val))")
 write_update(w :: UpdateWriter, v :: DeleteExpression) =
-    push!(w.removes, "$(write_expression(v.attr))")
+    push!(w.removes, "$(write_expression(w.refs, v.attr))")
 
-function serialize_updates(arr :: Array{DynamoUpdateExpression}, refs = refs_tracker())
+function serialize_updates(arr :: Array, refs = refs_tracker())
     w = UpdateWriter(refs, [], [], [], [])
     for e=arr
         write_update(w, e)
     end
-    w
+
+    parts = []
+    if w.sets != []
+        push!(parts, string("SET ", join(w.sets, ", ")))
+    end
+    if w.removes != []
+        push!(parts, string("REMOVE ", join(w.removes, ", ")))
+    end
+    if w.adds != []
+        push!(parts, string("ADD ", join(w.adds, ", ")))
+    end
+    if w.deletes != []
+        push!(parts, string("DELETE ", join(w.deletes, ", ")))
+    end
+
+    join(parts, " ")
 end
 
 
