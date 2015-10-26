@@ -1,5 +1,7 @@
 using DynamoDB
 using Base.Test
 
-# write your own tests here
-@test 1 == 1
+tic()
+include("dynamo_json.jl")
+include("dynamo_dsl.jl")
+toc()

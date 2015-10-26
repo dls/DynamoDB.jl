@@ -85,9 +85,7 @@ function get_item(table :: DynamoTable, key, range=nothing; consistant_read=true
 
     res = Dict() # TODO: run it
 
-    item = res["Item"]
-    init_vals = [value_to_attribute(item[string(e)]) for e=fieldnames(get.table.ty)]
-    table.ty(init_vals...)
+    value_from_attribute(table.ty, res["Item"])
 end
 
 
