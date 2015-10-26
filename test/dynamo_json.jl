@@ -43,10 +43,7 @@ res = null_or_val(Set(["1", "2", "3"]))
 
 @test null_or_val(Dict("four" => 3, 7 => 11)) == Dict("M"=>Dict("four"=>Dict("N"=>3),"7"=>Dict("N"=>11)))
 
-immutable Foo
-    a
-    b
-end
+# see runtests.jl for Foo's definition
 
 @test null_or_val(Foo(3, "fourty")) == Dict("M"=>Dict("a"=>Dict("N"=>3),"b"=>Dict("S"=>"fourty")))
 
