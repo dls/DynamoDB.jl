@@ -390,7 +390,7 @@ function update_item_dict(table :: DynamoTable, key, range, update_expression;
                        "Key" => keydict(table, key, range),
                        "ReturnValues" => returning)
 
-    # ReturnConsumedCapacity ==> INDEXES | TOTAL | NONE
+    # ReturnConsumedCapacity == INDEXES | TOTAL | NONE
 
     refs = refs_tracker()
     request_map["UpdateExpression"] = serialize_updates(update_expression, refs)
@@ -506,27 +506,33 @@ const SELECT_ALL_PROJECTED_ATTRIBUTES = "ALL_PROJECTED_ATTRIBUTES"
 const SELECT_SPECIFIC_ATTRIBUTES = "SPECIFIC_ATTRIBUTES"
 const SELECT_COUNT = "COUNT"
 
-function query_dict(table :: DynamoTable, range_condition;
-               filter=nothing :: Union{Void, CEBoolean}, projection=[] :: Array{DynamoReference},
+function query_dict(table :: DynamoTable, hash_val, range_condition;
+               filter=nothing :: Union{Void, CEBoolean}, projection=[] :: Array,
                consistant_read=true, scan_index_forward=true, limit=nothing, index_name=nothing,
                select_type=nothing)
     refs = refs_tracker()
+    request_map = Dict{AbstractString, Any}("TableName" => table.name,
+                       "KeyConditionExpression" => serialize_expression(and(eq(attr(table.hash_key_name), hash_val),
+                                                                            range_condition), refs))
 
-    request_map = Dict("TableName" => table.name,
-                       "ConsistentRead" => consistant_read,
-                       "ScanIndexForward" => scan_index_forward,
-                       "KeyConditionExpression" => serialize_expression(range_condition, refs))
+    # only write if value isn't the default value
+    if consistant_read == false
+        request_map["ConsistentRead"] = consistant_read
+    end
+    if scan_index_forward == false
+        request_map["ScanIndexForward"] = scan_index_forward
+    end
 
     if index_name != nothing
         request_map["IndexName"] = index_name
     end
-    if projection != nothing
+    if length(projection) != 0
         request_map["ProjectionExpression"] = join([write_expression(refs, e) for e=projection], ", ")
     elseif select_type != nothing
         request_map["Select"] = select_type
     end
     if filter != nothing
-        request_map["FilterExpression"] = ?
+        request_map["FilterExpression"] = serialize_expression(filter, refs)
     end
     if limit != nothing
         request_map["Limit"] = limit
@@ -536,11 +542,11 @@ function query_dict(table :: DynamoTable, range_condition;
     request_map
 end
 
-function query(table :: DynamoTable, range_condition;
+function query(table :: DynamoTable, hash_val, range_condition;
                filter=nothing :: Union{Void, CEBoolean}, projection=[] :: Array{DynamoReference},
                consistant_read=true, scan_index_forward=true, limit=nothing, index_name=nothing,
                select_type=nothing)
-    request_map = query_dict(table, range_condition; filter=filter, projection=projection
+    request_map = query_dict(table, hash_val, range_condition; filter=filter, projection=projection,
                              consistant_read=consistant_read, scan_index_forward=scan_index_forward,
                              limit=limit, index_name=index_name, select_type=select_type)
 
@@ -563,15 +569,16 @@ end
 query(table :: DynamoLocalIndex, range_condition;
       filter=nothing :: Union{Void, CEBoolean}, projection=[] :: Array{DynamoReference},
       consistant_read=true, scan_index_forward=true, limit=nothing, select_type=nothing) =
-   query(table.parent, range_condition; filter=filter, projection=projection
+   query(table.parent, hash_val, range_condition; filter=filter, projection=projection,
          consistant_read=consistant_read, scan_index_forward=scan_index_forward,
          limit=limit, index_name=table.index_name, select_type=select_type)
 
+# NOTE: consistant_reads aren't possible on global secondary indexes (hence the missing param)
 query(table :: DynamoGlobalIndex, range_condition;
       filter=nothing :: Union{Void, CEBoolean}, projection=[] :: Array{DynamoReference},
-      consistant_read=true, scan_index_forward=true, limit=nothing, select_type=nothing) =
-   query(table.parent, range_condition; filter=filter, projection=projection
-         consistant_read=consistant_read, scan_index_forward=scan_index_forward,
+      scan_index_forward=true, limit=nothing, select_type=nothing) =
+   query(table.parent, hash_val, range_condition; filter=filter, projection=projection,
+         consistant_read=false, scan_index_forward=scan_index_forward,
          limit=limit, index_name=table.index_name, select_type=select_type)
 
 

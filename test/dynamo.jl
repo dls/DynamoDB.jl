@@ -157,3 +157,25 @@ get_item_dict(table :: DynamoTable, key, range=nothing;
          "ConditionExpression" => "(#1) > (:2)",
          "ExpressionAttributeNames" => Dict("#1" => "b"),
          "ExpressionAttributeValues" => Dict(":2" => Dict("N" => 2)))
+
+
+## QUERY
+
+@test query_dict(foo_range, 77, attr("b") > 17) ==
+    Dict("TableName" => "foo_range",
+         "KeyConditionExpression" => "((#1) = (:2)) AND ((#3) > (:4))",
+         "ExpressionAttributeNames" => Dict("#1" => "a", "#3" => "b"),
+         "ExpressionAttributeValues" => Dict(":2" => Dict("N" => 77),
+                                             ":4" => Dict("N" => 17)))
+
+@test query_dict(foo_range, 77, attr("b") > 17;
+                 filter=attr("c") != "cat", scan_index_forward=false, limit=100) ==
+    Dict("TableName" => "foo_range",
+         "KeyConditionExpression" => "((#1) = (:2)) AND ((#3) > (:4))",
+         "FilterExpression" => "(#5) <> (:6)",
+         "ScanIndexForward" => false,
+         "Limit" => 100,
+         "ExpressionAttributeNames" => Dict("#1" => "a", "#3" => "b", "#5" => "c"),
+         "ExpressionAttributeValues" => Dict(":2" => Dict("N" => 77),
+                                             ":4" => Dict("N" => 17),
+                                             ":6" => Dict("S" => "cat")))
