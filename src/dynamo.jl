@@ -202,9 +202,10 @@ batch_get_item(table :: DynamoTable, keys...;
 # |  __/| |_| | |_ | || ||  __/ | | | | |
 # |_|    \__,_|\__|___|\__\___|_| |_| |_|
 
-function put_item_dict(table :: DynamoTable, item; conditional_expression=nothing)
+function put_item_dict(table :: DynamoTable, item;
+                       conditional_expression=nothing, return_old=false)
     request_map = Dict("Table" => table.name,
-                       "Item" => attribute_value(val))
+                       "Item" => attribute_value(item)["M"])
 
     if conditional_expression != nothing
         refs = refs_tracker()
@@ -213,17 +214,25 @@ function put_item_dict(table :: DynamoTable, item; conditional_expression=nothin
         request_map["ExpressionAttributeValues"] = refs.vals
     end
 
+    if return_old
+        request_map["ReturnValues"] = "ALL_OLD"
+    end
+
     # TODO: ReturnConsumedCapacity ?
     # TODO: ReturnItemCollectionMetrics ?
 
     request_map
 end
 
-function put_item(table :: DynamoTable, item; conditional_expression=nothing)
-    request_map = put_item_dict(table, item; conditional_expression=conditional_expression)
+function put_item(table :: DynamoTable, item; conditional_expression=nothing, return_old=false)
+    request_map = put_item_dict(table, item; conditional_expression=conditional_expression, return_old=return_old)
 
     # TODO: run
     res = Dict()
+
+    if return_old
+        return value_from_attribute(table.ty, res["Attributes"])
+    end
 end
 
 

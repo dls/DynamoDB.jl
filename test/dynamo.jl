@@ -72,3 +72,28 @@ get_item_dict(table :: DynamoTable, key, range=nothing;
 
 ## PUT ITEM
 
+@test put_item_dict(foo_basic, Foo(1, 2)) ==
+    Dict("Table" => "foo_basic",
+         "Item" => Dict("a" => Dict("N" => 1),
+                        "b" => Dict("N" => 2)))
+
+@test put_item_dict(foo_basic, Foo(1, 2); conditional_expression=attr("b") < 2) ==
+    Dict("Table" => "foo_basic",
+         "Item" => Dict("a" => Dict("N" => 1),
+                        "b" => Dict("N" => 2)),
+         "ConditionExpression" => "(#1) < (:2)",
+         "ExpressionAttributeNames" => Dict("#1" => "b"),
+         "ExpressionAttributeValues" => Dict(":2" => Dict("N" => 2)))
+
+@test put_item_dict(foo_basic, Foo(1, 2); conditional_expression=attr("b") < 2, return_old=true) ==
+    Dict("Table" => "foo_basic",
+         "Item" => Dict("a" => Dict("N" => 1),
+                        "b" => Dict("N" => 2)),
+         "ReturnValues" => "ALL_OLD",
+         "ConditionExpression" => "(#1) < (:2)",
+         "ExpressionAttributeNames" => Dict("#1" => "b"),
+         "ExpressionAttributeValues" => Dict(":2" => Dict("N" => 2)))
+
+
+## BATCH WRITE ITEM
+
