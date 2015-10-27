@@ -25,6 +25,7 @@ dynamo_table(ty :: Type, name, hash_key_name, range_key_name; env=nothing) =
 dynamo_table(ty :: Type, name, hash_key_name; env=nothing) =
     DynamoTable(ty, string(name), string(hash_key_name), nothing, env)
 
+
 immutable DynamoLocalIndex
     parent :: DynamoTable
     index_name :: AbstractString
@@ -33,6 +34,7 @@ end
 
 dynamo_local_index(parent :: DynamoTable, index_name, range_key_name) =
     DynamoLocalIndex(parent, string(index_name), string(range_key_name))
+
 
 immutable DynamoGlobalIndex
     parent :: DynamoTable
@@ -45,6 +47,7 @@ dynamo_global_index(parent :: DynamoTable, index_name, hash_key_name, range_key_
     DynamoGlobalIndex(parent, string(index_name), string(hash_key_name), range_key_name == nothing ? nothing : string(range_key_name))
 dynamo_global_index(parent :: DynamoTable, index_name, hash_key_name) =
     DynamoGlobalIndex(parent, string(index_name), string(hash_key_name), nothing)
+
 
 function _keydict(hashname, hashval, rangename, rangeval)
     if rangename == nothing
@@ -196,6 +199,7 @@ batch_get_item(table :: DynamoTable, keys...;
     batch_get_item([batch_get_item_part(table :: DynamoTable, keys...; only_returning=only_returning, consistant_read=consistant_read)])
 
 
+
 #     _    ____ ___
 #    / \  |  _ \_ _|_
 #   / _ \ | |_) | |(_)
@@ -238,6 +242,7 @@ function put_item(table :: DynamoTable, item; conditional_expression=nothing, re
         return value_from_attributes(table.ty, res["Attributes"])
     end
 end
+
 
 
 
@@ -322,7 +327,7 @@ function batch_write_item(parts :: Array{BatchWriteItemPart})
     # TODO: ReturnConsumedCapacity
     # TODO: ReturnItemCollectionMetrics
 
-    # TODO: run
+    (status, res) = dynamo_execute(parts[1].table.aws_env, "BatchWriteItem", dicts[1])
 end
 
 # helper/simpler methods
@@ -330,6 +335,9 @@ batch_put_item(table :: DynamoTable, items...) =
     batch_write_item([batch_put_part(table, items...)])
 batch_delete_item(table :: DynamoTable, keys...) =
     batch_write_item([batch_delete_part(table, keys...)])
+
+
+
 
 
 
@@ -371,14 +379,18 @@ function update_item_dict(table :: DynamoTable, key, range, update_expression;
     request_map
 end
 
-function update_item(table :: DynamoTable, key, range, update_expression :: CEBoolean;
+function update_item(table :: DynamoTable, key, range, update_expression :: Array;
                      conditions=nothing, returning=RETURN_NONE)
     request_map = update_item_dict(table, key, range, update_expression; conditions=nothing)
 
     # TODO: run it
     resp = Dict()
 
-# TODO: only on success...
+    (status, res) = dynamo_execute(table.aws_env, "UpdateItem", request_map)
+
+    @show (status, res)
+
+    # TODO: only on success...
 
     if returning == RETURN_ALL_OLD || returning == RETURN_ALL_NEW
         value_from_attributes(table.ty, res["Attributes"])
@@ -387,8 +399,20 @@ function update_item(table :: DynamoTable, key, range, update_expression :: CEBo
     end
 end
 
-update_item(table :: DynamoTable, key, update_expression :: CEBoolean; conditions=nothing) =
-    update_item(table, key, nothing, update_expression; conditions=conditions)
+
+update_item(table :: DynamoTable, key, update_expression :: Array;
+            conditions=nothing, returning=RETURN_NONE) =
+    update_item(table, key, nothing, update_expression; conditions=conditions, returning=returning)
+
+
+update_item{T <: DynamoUpdateExpression}(table :: DynamoTable, key, range, update_expression :: T;
+            conditions=nothing, returning=RETURN_NONE) =
+    update_item(table, key, range, [update_expression]; conditions=conditions, returning=returning)
+
+update_item{T <: DynamoUpdateExpression}(table :: DynamoTable, key, update_expression :: T;
+            conditions=nothing, returning=RETURN_NONE) =
+    update_item(table, key, nothing, [update_expression]; conditions=conditions, returning=returning)
+
 
 
 #     _    ____ ___
@@ -432,6 +456,8 @@ function delete_item(table :: DynamoTable, key, range=nothing; conditions=nothin
         return value_from_attributes(table.ty, res["Attributes"])
     end
 end
+
+
 
 #     _    ____ ___
 #    / \  |  _ \_ _|_
