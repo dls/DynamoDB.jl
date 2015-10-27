@@ -49,3 +49,26 @@ get_item_dict(table :: DynamoTable, key, range=nothing;
 
 ## BATCH_GET_ITEM
 
+@test batch_get_item_dict([batch_get_item_part(foo_basic, 1, 2)]) ==
+    Dict("RequestItems" => Dict("foo_basic" => Dict("ConsistentRead" => true,
+                                                    "Keys" => [Dict("a" => Dict("N" => 1)),
+                                                               Dict("a" => Dict("N" => 2))])))
+
+@test batch_get_item_dict([batch_get_item_part(foo_range, (1, 2), (3, 4))]) ==
+    Dict("RequestItems" => Dict("foo_range" =>
+                                Dict("ConsistentRead" => true,
+                                     "Keys" => [Dict("a" => Dict("N" => 1), "b" => Dict("N" => 2)),
+                                                Dict("a" => Dict("N" => 3), "b" => Dict("N" => 4))])))
+
+@test batch_get_item_dict([batch_get_item_part(foo_basic, 1, 2),
+                           batch_get_item_part(foo_range, (1, 2), (3, 4))]) ==
+    Dict("RequestItems"=>Dict("foo_basic"=>Dict("Keys"=>[Dict("a"=>Dict("N"=>1)),
+                                                         Dict("a"=>Dict("N"=>2))],
+                                                "ConsistentRead"=>true),
+                              "foo_range"=>Dict("Keys"=>[Dict("a"=>Dict("N"=>1),"b"=>Dict("N"=>2)),
+                                                         Dict("a"=>Dict("N"=>3),"b"=>Dict("N"=>4))],
+                                                "ConsistentRead"=>true)))
+
+
+## PUT ITEM
+

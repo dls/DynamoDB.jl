@@ -45,7 +45,7 @@ dynamo_global_index(parent :: DynamoTable, index_name, hash_key_name) =
 function _keydict(hashname, hashval, rangename, rangeval)
     if rangename == nothing
         if rangeval != nothing
-            error("tried to pass a non-null range value for a rangeless table")
+            error("tried to pass a non-null range value for a rangeless table $hashval, $rangeval")
         end
         return Dict{AbstractString, Any}(hashname => null_or_val(hashval))
     else
@@ -130,8 +130,11 @@ end
 
 # https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchGetItem.html
 
+# note: you can only fetch 100 items at a time with this API
+# TODO: multiplex calls to fix this client side?
+
 type BatchGetItemPart
-    table :: table
+    table :: DynamoTable
     keys
     only_returning
     consistant_read
@@ -141,12 +144,12 @@ batch_get_item_part(table :: DynamoTable, keys...;
                     only_returning=nothing :: Union{Void, Array{DynamoReference}}, consistant_read=true) =
     BatchGetItemPart(table, keys, only_returning, consistant_read)
 
-function batch_get_item_dict(arr :: BatchGetItemPart)
+function batch_get_item_dict(arr :: Array{BatchGetItemPart})
     m = Dict()
 
     for part=arr
-        request_map = Dict{Any, Any}("ConsistentRead" => part.consistent_read,
-                                     "Keys" = [keydict(part.table, e...) for e=part.keys])
+        request_map = Dict{Any, Any}("ConsistentRead" => part.consistant_read,
+                                     "Keys" => [keydict(part.table, e...) for e=part.keys])
         # TODO: "ReturnConsumedCapacity"
 
         if part.only_returning != nothing
@@ -154,13 +157,38 @@ function batch_get_item_dict(arr :: BatchGetItemPart)
             request_map["ProjectionExpression"] = join([write_expression(refs, e) for e=part.only_returning], ", ")
             request_map["ExpressionAttributeNames"] = refs.attrs
         end
+
+        m[part.table.name] = request_map
     end
 
     Dict("RequestItems" => m)
 end
 
-function batch_get_item()
+function batch_get_item(arr :: Array{BatchGetItemPart})
+    dict = batch_get_item_dict(arr)
+
+    res = Dict() # TODO: run it
+
+    type_lookup = Dict()
+    for e = arr
+        type_lookup[e.table.name] = e.table.ty
+    end
+
+    result = []
+    for (name, list)=res["Responses"]
+        ty = type_lookup[name]
+        for e=list
+            push!(result, value_from_attribute(ty, e))
+        end
+    end
+
+    result
 end
+
+# helper function for the single table case
+batch_get_item(table :: DynamoTable, keys...;
+               only_returning=nothing :: Union{Void, Array{DynamoReference}}, consistant_read=true) =
+    batch_get_item([batch_get_item_part(table :: DynamoTable, keys...; only_returning=only_returning, consistant_read=consistant_read)])
 
 
 #     _    ____ ___
@@ -174,18 +202,28 @@ end
 # |  __/| |_| | |_ | || ||  __/ | | | | |
 # |_|    \__,_|\__|___|\__\___|_| |_| |_|
 
-function put_item(table :: DynamoTable, val)
-    Dict{AbstractString, Any}("Table" => table.name,
-                      "Item" => attribute_value(val))
+function put_item_dict(table :: DynamoTable, item; conditional_expression=nothing)
+    request_map = Dict("Table" => table.name,
+                       "Item" => attribute_value(val))
+
+    if conditional_expression != nothing
+        refs = refs_tracker()
+        request_map["ConditionExpression"] = write_expression(refs, conditional_expression)
+        request_map["ExpressionAttributeNames"] = refs.attrs
+        request_map["ExpressionAttributeValues"] = refs.vals
+    end
+
+    # TODO: ReturnConsumedCapacity ?
+    # TODO: ReturnItemCollectionMetrics ?
+
+    request_map
 end
 
-function put_item(table :: DynamoTable, update :: DynamoUpdateExpression, guard :: CEBoolean)
-#    s = serialize_expression(expr)
-#    Dict{AbstractString, Any}("Table" => table.name,
-#                      "Item" => attribute_value(val),
-#                      "ConditionExpression" => s.expression,
-#                      "ExpressionAttributeNames" => expr.expression_attrs,
-#                      "ExpressionAttributeValues" => expr.expression_vals)
+function put_item(table :: DynamoTable, item; conditional_expression=nothing)
+    request_map = put_item_dict(table, item; conditional_expression=conditional_expression)
+
+    # TODO: run
+    res = Dict()
 end
 
 
@@ -206,6 +244,13 @@ end
 
 # write and/or delete up to 25 items at a time
 # NOTE: you can't update items using this API call... use put_item instead :(
+
+
+# TODO: ReturnConsumedCapacity
+# TODO: ReturnItemCollectionMetrics
+
+function batch_write_item()
+end
 
 
 #     _    ____ ___
