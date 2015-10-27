@@ -495,23 +495,84 @@ end
 #  \__\_\\__,_|\___|_|   \__, |
 #                        |___/
 
-function query(table :: DynamoTable)
-    Dict{AbstractString, Any}("TableName" => table.name,
-                      "ConsistentRead" => true,
-                      "ExclusiveStartKey" => 2,
-                      "ExpressionAttributeNames" => 3,
-                      "ExpressionAttributeValues" => 4,
-                      "FilterExpression" => 5,
-                      "KeyConditionExpression" => 6,
-                      "Limit" => 7,
-                      "ProjectionExpression" => 8,
-                      "ScanIndexForward" => 9)
 
-# Select ==> ALL_ATTRIBUTES | ALL_PROJECTED_ATTRIBUTES | SPECIFIC_ATTRIBUTES | COUNT
+# TODO: takes a max_vals, returns an interator, and prefetches via corouteines :D
+    # -- via ExclusiveStartKey
+
+# TODO: ReturnConsumedCapacity
+
+const SELECT_ALL_ATTRIBUTES = "ALL_ATTRIBUTES"
+const SELECT_ALL_PROJECTED_ATTRIBUTES = "ALL_PROJECTED_ATTRIBUTES"
+const SELECT_SPECIFIC_ATTRIBUTES = "SPECIFIC_ATTRIBUTES"
+const SELECT_COUNT = "COUNT"
+
+function query_dict(table :: DynamoTable, range_condition;
+               filter=nothing :: Union{Void, CEBoolean}, projection=[] :: Array{DynamoReference},
+               consistant_read=true, scan_index_forward=true, limit=nothing, index_name=nothing,
+               select_type=nothing)
+    refs = refs_tracker()
+
+    request_map = Dict("TableName" => table.name,
+                       "ConsistentRead" => consistant_read,
+                       "ScanIndexForward" => scan_index_forward,
+                       "KeyConditionExpression" => serialize_expression(range_condition, refs))
+
+    if index_name != nothing
+        request_map["IndexName"] = index_name
+    end
+    if projection != nothing
+        request_map["ProjectionExpression"] = join([write_expression(refs, e) for e=projection], ", ")
+    elseif select_type != nothing
+        request_map["Select"] = select_type
+    end
+    if filter != nothing
+        request_map["FilterExpression"] = ?
+    end
+    if limit != nothing
+        request_map["Limit"] = limit
+    end
+    set_expression_names_and_values(request_map, refs)
+
+    request_map
 end
 
-# set "IndexName"
+function query(table :: DynamoTable, range_condition;
+               filter=nothing :: Union{Void, CEBoolean}, projection=[] :: Array{DynamoReference},
+               consistant_read=true, scan_index_forward=true, limit=nothing, index_name=nothing,
+               select_type=nothing)
+    request_map = query_dict(table, range_condition; filter=filter, projection=projection
+                             consistant_read=consistant_read, scan_index_forward=scan_index_forward,
+                             limit=limit, index_name=index_name, select_type=select_type)
 
+    (status, res) = dynamo_execute(table.aws_env, "Query", request_map)
+    check_status(status, res)
+
+
+    # Count -- number of items returned
+    # ScannedCount -- number of items accessed
+    # LastEvaluatedKey -- for ExclusiveStartKey use... if missing, everything was processed
+
+    result = []
+    for e=res["Items"]
+        push!(result, value_from_attributes(table.ty, e))
+    end
+    result
+end
+
+
+query(table :: DynamoLocalIndex, range_condition;
+      filter=nothing :: Union{Void, CEBoolean}, projection=[] :: Array{DynamoReference},
+      consistant_read=true, scan_index_forward=true, limit=nothing, select_type=nothing) =
+   query(table.parent, range_condition; filter=filter, projection=projection
+         consistant_read=consistant_read, scan_index_forward=scan_index_forward,
+         limit=limit, index_name=table.index_name, select_type=select_type)
+
+query(table :: DynamoGlobalIndex, range_condition;
+      filter=nothing :: Union{Void, CEBoolean}, projection=[] :: Array{DynamoReference},
+      consistant_read=true, scan_index_forward=true, limit=nothing, select_type=nothing) =
+   query(table.parent, range_condition; filter=filter, projection=projection
+         consistant_read=consistant_read, scan_index_forward=scan_index_forward,
+         limit=limit, index_name=table.index_name, select_type=select_type)
 
 
 #     _    ____ ___

@@ -144,3 +144,16 @@ get_item_dict(table :: DynamoTable, key, range=nothing;
          "ExpressionAttributeNames" => Dict("#1" => "a", "#3" => "b"),
          "ExpressionAttributeValues" => Dict(":2" => Dict("N" => 22), ":4" => Dict("N" => 2)))
 
+
+## DELETE ITEM
+
+@test delete_item_dict(foo_basic, 1) ==
+    Dict("TableName" => "foo_basic",
+         "Key" => Dict("a" => Dict("N" => 1)))
+
+@test delete_item_dict(foo_basic, 1; conditions=attr("b") > 2) ==
+    Dict("TableName" => "foo_basic",
+         "Key" => Dict("a" => Dict("N" => 1)),
+         "ConditionExpression" => "(#1) > (:2)",
+         "ExpressionAttributeNames" => Dict("#1" => "b"),
+         "ExpressionAttributeValues" => Dict(":2" => Dict("N" => 2)))
