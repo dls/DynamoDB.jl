@@ -180,3 +180,16 @@ get_item_dict(table :: DynamoTable, key, range=nothing;
                                              ":4" => Dict("N" => 17),
                                              ":6" => Dict("S" => "cat")))
 
+@test query_dict(foo_range, 77, attr("b") > 17;
+                 projection = [attr("one"), attr("two")], consistant_read=false, index_name="MyIndex",
+                 filter=attr("c") != "cat", scan_index_forward=false, limit=100) ==
+    Dict("TableName" => "foo_range",
+         "KeyConditionExpression" => "((#1) = (:2)) AND ((#3) > (:4))",
+         "FilterExpression" => "(#7) <> (:8)",
+         "ProjectionExpression" => "#5, #6",
+         "ScanIndexForward" => false, "ConsistentRead" => false,
+         "IndexName" => "MyIndex", "Limit" => 100,
+         "ExpressionAttributeNames" => Dict("#1" => "a", "#3" => "b", "#5" => "one", "#6" => "two", "#7" => "c"),
+         "ExpressionAttributeValues" => Dict(":2" => Dict("N" => 77),
+                                             ":4" => Dict("N" => 17),
+                                             ":8" => Dict("S" => "cat")))

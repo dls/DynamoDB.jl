@@ -553,7 +553,6 @@ function query(table :: DynamoTable, hash_val, range_condition;
     (status, res) = dynamo_execute(table.aws_env, "Query", request_map)
     check_status(status, res)
 
-
     # Count -- number of items returned
     # ScannedCount -- number of items accessed
     # LastEvaluatedKey -- for ExclusiveStartKey use... if missing, everything was processed
