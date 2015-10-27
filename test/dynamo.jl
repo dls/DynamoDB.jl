@@ -179,3 +179,4 @@ get_item_dict(table :: DynamoTable, key, range=nothing;
          "ExpressionAttributeValues" => Dict(":2" => Dict("N" => 77),
                                              ":4" => Dict("N" => 17),
                                              ":6" => Dict("S" => "cat")))
+

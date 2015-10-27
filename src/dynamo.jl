@@ -512,7 +512,7 @@ function query_dict(table :: DynamoTable, hash_val, range_condition;
                select_type=nothing)
     refs = refs_tracker()
     request_map = Dict{AbstractString, Any}("TableName" => table.name,
-                       "KeyConditionExpression" => serialize_expression(and(eq(attr(table.hash_key_name), hash_val),
+                       "KeyConditionExpression" => serialize_expression(and(attr(table.hash_key_name) == hash_val,
                                                                             range_condition), refs))
 
     # only write if value isn't the default value

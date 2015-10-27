@@ -32,8 +32,7 @@ attribute(name :: AbstractString) = DynamoAttribute(name)
 attribute(name :: Symbol) = attribute(string(name))
 attr(name :: AbstractString) = attribute(name)
 attr(name :: Symbol) = attribute(name)
-import Base.==
-==(a :: DynamoAttribute, b :: DynamoAttribute) = a.name == b.name
+
 
 # a reference to dynamo sub-documents... eg "foo.bar" in {foo => {bar => 3}}
 immutable NestedDynamoAttribute <: DynamoReference
@@ -41,7 +40,7 @@ immutable NestedDynamoAttribute <: DynamoReference
 end
 attribute(names...) = NestedDynamoAttribute([attr(e) for e=names])
 attr(names...) = attribute(names...)
-==(a :: NestedDynamoAttribute, b :: NestedDynamoAttribute) = a.attrs == b.attrs
+
 
 immutable DynamoListElement <: DynamoReference
     attr :: DynamoReference
@@ -150,11 +149,12 @@ import Base.>=
 >=(lhs :: CEVal, rhs) = CEBinaryOp(">=", lhs, value_or_literal(rhs))
 >=(lhs, rhs :: CEVal) = CEBinaryOp(">=", value_or_literal(lhs), rhs)
 
-eq(lhs :: CEVal, rhs :: CEVal) = CEBinaryOp("=", lhs, rhs)
-#eq(lhs :: CEVal, rhs :: WeakRef) = CEBinaryOp("=", lhs, value_or_literal(rhs.value))
-eq(lhs :: CEVal, rhs) = CEBinaryOp("=", lhs, value_or_literal(rhs))
-#eq(lhs :: WeakRef, rhs :: CEVal) = CEBinaryOp("=", value_or_literal(lhs.value), rhs)
-eq(lhs, rhs :: CEVal) = CEBinaryOp("=", value_or_literal(lhs), rhs)
+import Base.==
+==(lhs :: CEVal, rhs :: CEVal) = CEBinaryOp("=", lhs, rhs)
+==(lhs :: CEVal, rhs :: WeakRef) = CEBinaryOp("=", lhs, value_or_literal(rhs.value))
+==(lhs :: CEVal, rhs) = CEBinaryOp("=", lhs, value_or_literal(rhs))
+==(lhs :: WeakRef, rhs :: CEVal) = CEBinaryOp("=", value_or_literal(lhs.value), rhs)
+==(lhs, rhs :: CEVal) = CEBinaryOp("=", value_or_literal(lhs), rhs)
 
 import Base.!=
 !=(lhs :: CEVal, rhs :: CEVal) = CEBinaryOp("<>", lhs, rhs)

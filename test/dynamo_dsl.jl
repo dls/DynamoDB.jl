@@ -10,12 +10,8 @@ include("../src/dynamo_dsl.jl")
 @test attr("foo").name == "foo"
 @test attr(:foo).name == "foo"
 
-@test attr("foo") == attr("foo")
-@test attr("foo") == attr(:foo)
-
-@test attr("foo", "bar", "baz").attrs == [attr("foo"), attr("bar"), attr("baz")]
-@test attr(:foo, :bar, :baz).attrs == [attr("foo"), attr("bar"), attr("baz")]
-@test attr("foo", "bar", "baz") == attr(:foo, :bar, :baz)
+@test [e.name for e=attr("foo", "bar", "baz").attrs] == ["foo", "bar", "baz"]
+@test [e.name for e=attr(:foo, :bar, :baz).attrs] == ["foo", "bar", "baz"]
 
 @test attr(:foo)[1].attr.name == "foo"
 @test attr(:foo)[1].idx == 1
@@ -68,7 +64,6 @@ check_expression(contains(attr("foo"), "bar"), "contains(#1, :2)";
 check_expression(contains(attr("foo"), attr("bar")), "contains(#1, #2)";
                  attrs = Dict("#1" => "foo", "#2" => "bar"), vals = Dict())
 
-
 check_expression(is_string(attr("foo")), "attribute_type(#1, \"S\")";
                  attrs = Dict("#1" => "foo"), vals = Dict())
 check_expression(is_string_set(attr("foo")), "attribute_type(#1, \"SS\")";
@@ -92,12 +87,10 @@ check_expression(is_map(attr("foo")), "attribute_type(#1, \"M\")";
 check_expression(is_document(attr("foo")), "attribute_type(#1, \"M\")";
                  attrs = Dict("#1" => "foo"), vals = Dict())
 
-
 check_expression(exists(attr("foo")), "attribute_exists(#1)";
                  attrs = Dict("#1" => "foo"), vals = Dict())
 check_expression(not_exists(attr("foo")), "attribute_not_exists(#1)";
                  attrs = Dict("#1" => "foo"), vals = Dict())
-
 
 check_expression(attr("foo") < 1, "(#1) < (:2)";
                  attrs = Dict("#1" => "foo"), vals = Dict(":2" => Dict("N" => 1)))
@@ -127,7 +120,12 @@ check_expression(1 >= attr("foo"), "(:1) >= (#2)";
 check_expression(attr("foo") >= attr("bar"), "(#1) >= (#2)";
                  attrs = Dict("#1" => "foo", "#2" => "bar"), vals = Dict())
 
-# TODO: ==
+check_expression(attr("foo") == 1, "(#1) = (:2)";
+                 attrs = Dict("#1" => "foo"), vals = Dict(":2" => Dict("N" => 1)))
+check_expression(1 == attr("foo"), "(:1) = (#2)";
+                 attrs = Dict("#2" => "foo"), vals = Dict(":1" => Dict("N" => 1)))
+check_expression(attr("foo") == attr("bar"), "(#1) = (#2)";
+                 attrs = Dict("#1" => "foo", "#2" => "bar"), vals = Dict())
 
 check_expression(attr("foo") != 1, "(#1) <> (:2)";
                  attrs = Dict("#1" => "foo"), vals = Dict(":2" => Dict("N" => 1)))
