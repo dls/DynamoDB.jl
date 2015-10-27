@@ -86,7 +86,7 @@ end
 
 function value_from_attributes(ty :: Type, typed_json :: Dict)
     if ty == Dict
-        return typed_json
+        return value_from_attributes(Dict("M" => typed_json))
     end
 
     vals = value_from_attributes(typed_json)

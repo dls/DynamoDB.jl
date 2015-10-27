@@ -6,8 +6,10 @@
 #        |___/                                    |___/|_|
 
 
+# TODO -- exponential backoff algorithm with (logged?) warnings
 # TODO -- optional whitelist and blacklist attribute values for persisting objects
 # TODO -- version columns + transactions -- perhaps in a higher level library?
+
 
 immutable DynamoTable
     ty :: Type
@@ -252,14 +254,81 @@ end
 # https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchWriteItem.html
 
 # write and/or delete up to 25 items at a time
-# NOTE: you can't update items using this API call... use put_item instead :(
+# NOTE: you can't update items using this API call... use update_item instead
 
 
 # TODO: ReturnConsumedCapacity
 # TODO: ReturnItemCollectionMetrics
 
-function batch_write_item()
+type BatchWriteItemPart
+    table :: DynamoTable
+    keys_to_delete
+    items_to_write
 end
+batch_write_item_part(table :: DynamoTable, keys_to_delete, items_to_write) =
+    BatchWriteItemPart(table, keys_to_delete, items_to_write)
+batch_delete_part(table :: DynamoTable, keys...) =
+    BatchWriteItemPart(table, keys, [])
+batch_put_part(table :: DynamoTable, items...) =
+    BatchWriteItemPart(table, [], items)
+
+
+function batch_write_item_dict(parts :: Array{BatchWriteItemPart})
+    dicts = []
+
+    current_ct = 0
+    current_dict = Dict()
+
+    function add_op(table_name, op)
+        if current_ct == 25
+            push!(dicts, Dict("RequestItems" => current_dict))
+
+            current_ct = 0
+            current_dict = Dict()
+        end
+
+        if !haskey(current_dict, table_name)
+            current_dict[table_name] = []
+        end
+        ops = current_dict[table_name]
+
+        push!(ops, op)
+        current_ct += 1
+    end
+
+    for p=parts
+        for e=p.keys_to_delete
+            add_op(p.table.name, Dict("DeleteRequest" => Dict("Key" => keydict(p.table, e...))))
+        end
+        for e=p.items_to_write
+            add_op(p.table.name, Dict("PutRequest" => Dict("Item" => attribute_value(e)["M"])))
+        end
+    end
+
+    push!(dicts, Dict("RequestItems" => current_dict))
+    dicts
+end
+
+function batch_write_item(parts :: Array{BatchWriteItemPart})
+    dicts = batch_write_item_dict(parts)
+
+    if length(dicts) != 1
+        # TODO:
+        error("batch_write_item is limited to 25 items by the DynamoDB official API... and this library doesn't (yet) support multiplexing")
+    end
+
+    # TODO: ReturnConsumedCapacity
+    # TODO: ReturnItemCollectionMetrics
+
+    # TODO: run
+end
+
+# helper/simpler methods
+batch_put_item(table :: DynamoTable, items...) =
+    batch_write_item([batch_put_part(table, items...)])
+batch_delete_item(table :: DynamoTable, keys...) =
+    batch_write_item([batch_delete_part(table, keys...)])
+
 
 
 #     _    ____ ___
@@ -275,19 +344,49 @@ end
 #       |_|
 
 
-function update_item(table :: DynamoTable, key, range)
-#    Dict{AbstractString, Any}("TableName" => table.name,
-#                      "Key" => keydict(table, key, range),
-#                      "ReturnConsumedCapacity" => "NONE",
-#                      "ConditionExpression" => 3,
-#                      "UpdateExpression" => 6,
-#                      "ExpressionAttributeNames" => 4,
-#                      "ExpressionAttributeValues" => 5,
-#                      "ReturnValues" => "NONE")
+const RETURN_NONE = "NONE"
+const RETURN_ALL_OLD = "ALL_OLD"
+const RETURN_UPDATED_OLD = "UPDATED_OLD"
+const RETURN_ALL_NEW = "ALL_NEW"
+const RETURN_UPDATED_NEW = "UPDATED_NEW"
 
-# ReturnConsumedCapacity ==> INDEXES | TOTAL | NONE
-# ReturnValues ==> NONE | ALL_OLD | UPDATED_OLD | ALL_NEW | UPDATED_NEW
+function update_item_dict(table :: DynamoTable, key, range, update_expression;
+                          conditions=nothing, returning=RETURN_NONE)
+    request_map = Dict("TableName" => table.name,
+                       "Key" => keydict(table, key, range),
+                       "ReturnValues" => returning)
+
+    # ReturnConsumedCapacity ==> INDEXES | TOTAL | NONE
+
+    refs = refs_tracker()
+    request_map["UpdateExpression"] = serialize_updates(update_expression, refs)
+    if conditions != nothing
+        request_map["ConditionExpression"] = serialize_expression(conditions, refs)
+    end
+    request_map["ExpressionAttributeNames"] = refs.attrs
+    request_map["ExpressionAttributeValues"] = refs.vals
+
+    request_map
 end
+
+function update_item(table :: DynamoTable, key, range, update_expression :: CEBoolean;
+                     conditions=nothing, returning=RETURN_NONE)
+    request_map = update_item_dict(table, key, range, update_expression; conditions=nothing)
+
+    # TODO: run it
+    resp = Dict()
+
+# TODO: only on success...
+
+    if returning == RETURN_ALL_OLD || returning == RETURN_ALL_NEW
+        value_from_attribute(table.ty, res["Attributes"])
+    elseif returning == RETURN_UPDATED_OLD || returning == RETURN_UPDATED_NEW
+        value_from_attribute(Dict, res["Attributes"])
+    end
+end
+
+update_item(table :: DynamoTable, key, update_expression :: CEBoolean; conditions=nothing) =
+    update_item(table, key, nothing, update_expression; conditions=conditions)
 
 
 #     _    ____ ___

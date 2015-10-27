@@ -97,3 +97,50 @@ get_item_dict(table :: DynamoTable, key, range=nothing;
 
 ## BATCH WRITE ITEM
 
+@test batch_write_item_dict([batch_delete_part(foo_basic, 1, 2)]) ==
+    [Dict("RequestItems" => Dict("foo_basic" => [Dict("DeleteRequest" =>
+                                                      Dict("Key" => Dict("a" => Dict("N" => 1)))),
+                                                 Dict("DeleteRequest" =>
+                                                      Dict("Key" => Dict("a" => Dict("N" => 2))))]))]
+
+@test batch_write_item_dict([batch_put_part(foo_basic, Foo(1, 2), Foo(3, 4))]) ==
+    [Dict("RequestItems" => Dict("foo_basic" => [Dict("PutRequest" =>
+                                                      Dict("Item" => Dict("a" => Dict("N" => 1),
+                                                                          "b" => Dict("N" => 2)))),
+                                                 Dict("PutRequest" =>
+                                                      Dict("Item" => Dict("a" => Dict("N" => 3),
+                                                                          "b" => Dict("N" => 4))))]))]
+
+@test batch_write_item_dict([batch_delete_part(foo_basic, 1, 2),
+                             batch_put_part(foo_basic, Foo(1, 2), Foo(3, 4))]) ==
+    [Dict("RequestItems" => Dict("foo_basic" => [Dict("DeleteRequest" =>
+                                                      Dict("Key" => Dict("a" => Dict("N" => 1)))),
+                                                 Dict("DeleteRequest" =>
+                                                      Dict("Key" => Dict("a" => Dict("N" => 2)))),
+                                                 Dict("PutRequest" =>
+                                                      Dict("Item" => Dict("a" => Dict("N" => 1),
+                                                                          "b" => Dict("N" => 2)))),
+                                                 Dict("PutRequest" =>
+                                                      Dict("Item" => Dict("a" => Dict("N" => 3),
+                                                                          "b" => Dict("N" => 4))))]))]
+
+
+## UPDATE ITEM
+
+@test update_item_dict(foo_basic, 1, nothing, [assign(attr("a"), 22)]) ==
+    Dict("TableName" => "foo_basic",
+         "Key" => Dict("a" => Dict("N" => 1)),
+         "ReturnValues" => "NONE",
+         "UpdateExpression" => "SET #1 = :2",
+         "ExpressionAttributeNames" => Dict("#1" => "a"),
+         "ExpressionAttributeValues" => Dict(":2" => Dict("N" => 22)))
+
+@test update_item_dict(foo_basic, 1, nothing, [assign(attr("a"), 22)]; conditions=attr("b") <= 2) ==
+    Dict("TableName" => "foo_basic",
+         "Key" => Dict("a" => Dict("N" => 1)),
+         "ReturnValues" => "NONE",
+         "UpdateExpression" => "SET #1 = :2",
+         "ConditionExpression" => "(#3) <= (:4)",
+         "ExpressionAttributeNames" => Dict("#1" => "a", "#3" => "b"),
+         "ExpressionAttributeValues" => Dict(":2" => Dict("N" => 22), ":4" => Dict("N" => 2)))
+
