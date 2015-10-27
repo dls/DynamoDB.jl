@@ -88,6 +88,15 @@ CC_TOTAL = ConsumedCapacity("TOTAL")
 CC_NONE = ConsumedCapacity("NONE")
 
 
+
+# some helper functions
+function check_status(code, resp)
+    if code != 200
+        println("\n\tFound (potential) error:\t")
+        @show (code, resp)
+    end
+end
+
 function set_expression_names_and_values(request_map, refs)
     if length(refs.attrs) != 0
        request_map["ExpressionAttributeNames"] = refs.attrs
@@ -126,6 +135,8 @@ function get_item(table :: DynamoTable, key, range=nothing;
     request_map = get_item_query_dict(table, key, range, consistant_read, only_returning)
 
     (status, res) = dynamo_execute(table.aws_env, "GetItem", request_map)
+    check_status(status, res)
+
     if haskey(res, "Item")
         return value_from_attributes(table.ty, res["Item"])
     end
@@ -185,6 +196,7 @@ function batch_get_item(arr :: Array{BatchGetItemPart})
     request_map = batch_get_item_dict(arr)
 
     (status, res) = dynamo_execute(arr[1].table.aws_env, "BatchGetItem", request_map)
+    check_status(status, res)
 
     type_lookup = Dict()
     for e = arr
@@ -245,6 +257,7 @@ function put_item(table :: DynamoTable, item; conditional_expression=nothing, re
     request_map = put_item_dict(table, item; conditional_expression=conditional_expression, return_old=return_old)
 
     (status, res) = dynamo_execute(table.aws_env, "PutItem", request_map)
+    check_status(status, res)
 
     if return_old && haskey(res, "Attributes")
         return value_from_attributes(table.ty, res["Attributes"])
@@ -336,6 +349,9 @@ function batch_write_item(parts :: Array{BatchWriteItemPart})
     # TODO: ReturnItemCollectionMetrics
 
     (status, res) = dynamo_execute(parts[1].table.aws_env, "BatchWriteItem", dicts[1])
+    check_status(status, res)
+
+    res
 end
 
 # helper/simpler methods
@@ -394,6 +410,7 @@ function update_item(table :: DynamoTable, key, range, update_expression :: Arra
     resp = Dict()
 
     (status, res) = dynamo_execute(table.aws_env, "UpdateItem", request_map)
+    check_status(status, res)
 
     # TODO: only on success...
 
@@ -448,6 +465,8 @@ function delete_item_dict(table :: DynamoTable, key, range=nothing; conditions=n
         request_map["ConditionExpression"] = serialize_expression(conditions, refs)
         set_expression_names_and_values(request_map, refs)
     end
+
+    request_map
 end
 
 
@@ -455,6 +474,7 @@ function delete_item(table :: DynamoTable, key, range=nothing; conditions=nothin
     request_map = delete_item_dict(table, key, range; conditions=conditions, return_old=return_old)
 
     (status, res) = dynamo_execute(table.aws_env, "DeleteItem", request_map)
+    check_status(status, res)
 
     if return_old
         return value_from_attributes(table.ty, res["Attributes"])
