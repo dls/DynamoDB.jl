@@ -402,17 +402,35 @@ update_item(table :: DynamoTable, key, update_expression :: CEBoolean; condition
 
 # https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_DeleteItem.html
 
-function delete_item(table :: DynamoTable, key, range=nothing)
+function delete_item_dict(table :: DynamoTable, key, range=nothing; conditions=nothing, return_old=false)
     # "ConditionExpression"
-    # "ReturnValues"
 
-    Dict{AbstractString, Any}("TableName" => table.name,
-                      "Key" => keydict(table, key, range),
-                      "ConditionExpression" => 3,
-                      "ExpressionAttributeNames" => 4,
-                      "ExpressionAttributeValues" => 5)
+    request_map = Dict("TableName" => table.name,
+                       "Key" => keydict(table, key, range))
+
+    if return_old
+        request_map["ReturnValues"] = "ALL_OLD"
+    end
+
+    refs = refs_tracker()
+    if conditions != nothing
+        request_map["ConditionExpression"] = serialize_expression(conditions, refs)
+        request_map["ExpressionAttributeNames"] = refs.attrs
+        request_map["ExpressionAttributeValues"] = refs.vals
+    end
 end
 
+
+function delete_item(table :: DynamoTable, key, range=nothing; conditions=nothing, return_old=false)
+    request_map = delete_item_dict(table, key, range; conditions=conditions, return_old=return_old)
+
+    # TODO: run it
+    res = Dict()
+
+    if return_old
+        return value_from_attribute(table.ty, res["Attributes"])
+    end
+end
 
 #     _    ____ ___
 #    / \  |  _ \_ _|_
