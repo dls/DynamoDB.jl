@@ -16,12 +16,14 @@ immutable DynamoTable
     name :: AbstractString
     hash_key_name :: AbstractString
     range_key_name :: Union{AbstractString, Void}
+
+    aws_env # security credentials, etc
 end
 
 dynamo_table(ty :: Type, name, hash_key_name, range_key_name) =
-    DynamoTable(ty, string(name), string(hash_key_name), range_key_name == nothing ? nothing : string(range_key_name))
+    DynamoTable(ty, string(name), string(hash_key_name), range_key_name == nothing ? nothing : string(range_key_name), nothing)
 dynamo_table(ty :: Type, name, hash_key_name) =
-    DynamoTable(ty, string(name), string(hash_key_name), nothing)
+    DynamoTable(ty, string(name), string(hash_key_name), nothing, nothing)
 
 immutable DynamoLocalIndex
     parent :: DynamoTable
