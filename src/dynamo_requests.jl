@@ -34,7 +34,7 @@ function get_signature_key(key, datestamp, region, service)
     return kSigning
 end
 
-function signature_version_4(env, service, method, host, headers, payload)
+function signature_version_4(env, service, method, host, action, payload)
     # inputs to request
     amzdate = get_utc_timestamp(; basic=true)
     datestamp = amzdate[1:searchindex(amzdate, "T")-1]
@@ -42,7 +42,7 @@ function signature_version_4(env, service, method, host, headers, payload)
     # Task 1: canonical request
     canonical_uri = "/"
     canonical_querystring = ""
-    canonical_headers = "host:" * host * "\n" * "x-amz-date:" * amzdate * "\n" * "x-amz-target:DynamoDB_20120810.GetItem" * "\n"
+    canonical_headers = "host:" * host * "\n" * "x-amz-date:" * amzdate * "\n" * "x-amz-target:DynamoDB_20120810.$action" * "\n"
     signed_headers = "host;x-amz-date;x-amz-target"
     payload_hash = bytes2hex(Crypto.sha256(payload))
 
@@ -67,20 +67,18 @@ function signature_version_4(env, service, method, host, headers, payload)
                ("X-Amz-Date", amzdate),
                ("Host", host),
                ("Content-Type", "application/x-amz-json-1.0"),
-               ("X-Amz-Target", "DynamoDB_20120810.GetItem")]
+               ("X-Amz-Target", "DynamoDB_20120810.$action")]
 
     return headers
 end
 
 
-function dynamo_execute(env, action, body)
-    # Prepare the standard params
-    headers=Array(Tuple,0)
-
+function dynamo_execute(env, action, json_data)
     host_base = replace(env.ep_host, r"^ec2.", "")
     host = "dynamodb.$(host_base)"
 
-    amz_headers = signature_version_4(env, "dynamodb", "POST", host, headers, body)
+    body = JSON.json(json_data)
+    amz_headers = signature_version_4(env, "dynamodb", "POST", host, action, body)
 
     ro = HTTPC.RequestOptions(headers = amz_headers, request_timeout = env.timeout)
     resp = HTTPC.post("https://$host/", body, ro)

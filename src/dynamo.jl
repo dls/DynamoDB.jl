@@ -20,10 +20,10 @@ immutable DynamoTable
     aws_env # security credentials, etc
 end
 
-dynamo_table(ty :: Type, name, hash_key_name, range_key_name) =
-    DynamoTable(ty, string(name), string(hash_key_name), range_key_name == nothing ? nothing : string(range_key_name), nothing)
-dynamo_table(ty :: Type, name, hash_key_name) =
-    DynamoTable(ty, string(name), string(hash_key_name), nothing, nothing)
+dynamo_table(ty :: Type, name, hash_key_name, range_key_name; env=nothing) =
+    DynamoTable(ty, string(name), string(hash_key_name), range_key_name == nothing ? nothing : string(range_key_name), env)
+dynamo_table(ty :: Type, name, hash_key_name; env=nothing) =
+    DynamoTable(ty, string(name), string(hash_key_name), nothing, env)
 
 immutable DynamoLocalIndex
     parent :: DynamoTable
@@ -111,11 +111,12 @@ end
 
 function get_item(table :: DynamoTable, key, range=nothing;
                   consistant_read=true, only_returning=nothing :: Union{Void, Array{DynamoReference}})
-    dict = get_item_query_dict(table, key, range, consistant_read, only_returning)
+    request_map = get_item_query_dict(table, key, range, consistant_read, only_returning)
 
-    res = Dict() # TODO: run it
-
-    value_from_attribute(table.ty, res["Item"])
+    (status, res) = dynamo_execute(table.aws_env, "GetItem", request_map)
+    if haskey(res, "Item")
+        return value_from_attributes(table.ty, res["Item"])
+    end
 end
 
 
@@ -169,9 +170,9 @@ function batch_get_item_dict(arr :: Array{BatchGetItemPart})
 end
 
 function batch_get_item(arr :: Array{BatchGetItemPart})
-    dict = batch_get_item_dict(arr)
+    request_map = batch_get_item_dict(arr)
 
-    res = Dict() # TODO: run it
+    (status, res) = dynamo_execute(arr[1].table.aws_env, "BatchGetItem", request_map)
 
     type_lookup = Dict()
     for e = arr
@@ -182,7 +183,7 @@ function batch_get_item(arr :: Array{BatchGetItemPart})
     for (name, list)=res["Responses"]
         ty = type_lookup[name]
         for e=list
-            push!(result, value_from_attribute(ty, e))
+            push!(result, value_from_attributes(ty, e))
         end
     end
 
@@ -208,7 +209,7 @@ batch_get_item(table :: DynamoTable, keys...;
 
 function put_item_dict(table :: DynamoTable, item;
                        conditional_expression=nothing, return_old=false)
-    request_map = Dict("Table" => table.name,
+    request_map = Dict("TableName" => table.name,
                        "Item" => attribute_value(item)["M"])
 
     if conditional_expression != nothing
@@ -231,11 +232,10 @@ end
 function put_item(table :: DynamoTable, item; conditional_expression=nothing, return_old=false)
     request_map = put_item_dict(table, item; conditional_expression=conditional_expression, return_old=return_old)
 
-    # TODO: run
-    res = Dict()
+    (status, res) = dynamo_execute(table.aws_env, "PutItem", request_map)
 
-    if return_old
-        return value_from_attribute(table.ty, res["Attributes"])
+    if return_old && haskey(res, "Attributes")
+        return value_from_attributes(table.ty, res["Attributes"])
     end
 end
 
@@ -381,9 +381,9 @@ function update_item(table :: DynamoTable, key, range, update_expression :: CEBo
 # TODO: only on success...
 
     if returning == RETURN_ALL_OLD || returning == RETURN_ALL_NEW
-        value_from_attribute(table.ty, res["Attributes"])
+        value_from_attributes(table.ty, res["Attributes"])
     elseif returning == RETURN_UPDATED_OLD || returning == RETURN_UPDATED_NEW
-        value_from_attribute(Dict, res["Attributes"])
+        value_from_attributes(Dict, res["Attributes"])
     end
 end
 
@@ -426,11 +426,10 @@ end
 function delete_item(table :: DynamoTable, key, range=nothing; conditions=nothing, return_old=false)
     request_map = delete_item_dict(table, key, range; conditions=conditions, return_old=return_old)
 
-    # TODO: run it
-    res = Dict()
+    (status, res) = dynamo_execute(table.aws_env, "DeleteItem", request_map)
 
     if return_old
-        return value_from_attribute(table.ty, res["Attributes"])
+        return value_from_attributes(table.ty, res["Attributes"])
     end
 end
 
