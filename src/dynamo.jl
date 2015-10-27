@@ -88,6 +88,15 @@ CC_TOTAL = ConsumedCapacity("TOTAL")
 CC_NONE = ConsumedCapacity("NONE")
 
 
+function set_expression_names_and_values(request_map, refs)
+    if length(refs.attrs) != 0
+       request_map["ExpressionAttributeNames"] = refs.attrs
+    end
+    if length(refs.vals) != 0
+        request_map["ExpressionAttributeValues"] = refs.vals
+    end
+end
+
 
 #     _    ____ ___      ____      _   ___ _
 #    / \  |  _ \_ _|_   / ___| ___| |_|_ _| |_ ___ _ __ ___
@@ -219,8 +228,7 @@ function put_item_dict(table :: DynamoTable, item;
     if conditional_expression != nothing
         refs = refs_tracker()
         request_map["ConditionExpression"] = write_expression(refs, conditional_expression)
-        request_map["ExpressionAttributeNames"] = refs.attrs
-        request_map["ExpressionAttributeValues"] = refs.vals
+        set_expression_names_and_values(request_map, refs)
     end
 
     if return_old
@@ -373,8 +381,7 @@ function update_item_dict(table :: DynamoTable, key, range, update_expression;
     if conditions != nothing
         request_map["ConditionExpression"] = serialize_expression(conditions, refs)
     end
-    request_map["ExpressionAttributeNames"] = refs.attrs
-    request_map["ExpressionAttributeValues"] = refs.vals
+    set_expression_names_and_values(request_map, refs)
 
     request_map
 end
@@ -387,8 +394,6 @@ function update_item(table :: DynamoTable, key, range, update_expression :: Arra
     resp = Dict()
 
     (status, res) = dynamo_execute(table.aws_env, "UpdateItem", request_map)
-
-    @show (status, res)
 
     # TODO: only on success...
 
@@ -441,8 +446,7 @@ function delete_item_dict(table :: DynamoTable, key, range=nothing; conditions=n
     refs = refs_tracker()
     if conditions != nothing
         request_map["ConditionExpression"] = serialize_expression(conditions, refs)
-        request_map["ExpressionAttributeNames"] = refs.attrs
-        request_map["ExpressionAttributeValues"] = refs.vals
+        set_expression_names_and_values(request_map, refs)
     end
 end
 

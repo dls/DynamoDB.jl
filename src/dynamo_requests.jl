@@ -73,7 +73,7 @@ function signature_version_4(env, service, method, host, action, payload)
 end
 
 
-function dynamo_execute(env, action, json_data)
+function dynamo_execute(env, action, json_data; debug=false)
     host_base = replace(env.ep_host, r"^ec2.", "")
     host = "dynamodb.$(host_base)"
 
