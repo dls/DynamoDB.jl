@@ -592,18 +592,85 @@ query(table :: DynamoGlobalIndex, range_condition;
 #  ___) | (_| (_| | | | |
 # |____/ \___\__,_|_| |_|
 
-function scan(table :: DynamoTable)
-    Dict{AbstractString, Any}("TableName" => table.name,
-                      "ConsistentRead" => 3,
-                      "ExclusiveStartKey" => 4,
-                      "ExpressionAttributeNames" => 4,
-                      "ExpressionAttributeValues" => 5,
-                      "FilterExpression" => 6,
-                      "IndexName" => 888,
-                      "Limit" => 9,
-                      "ProjectionExpression" => 10,
-                      "ReturnConsumedCapacity" => 11,
-                      "Segment" => 12,
-                      "TotalSegments" => 13,
-                      "Select" => 13)
+function scan_dict(table :: DynamoLocalIndex, filter = no_conditions() :: CEBoolean;
+                   projection=[] :: Array{DynamoReference}, consistant_read=true, scan_index_forward=true,
+                   limit=nothing, select_type=nothing, count=false, segment=nothing, total_segments=nothing,
+                   index_name=nothing)
+
+    # TODO: ExclusiveStartKey
+    # TODO: ReturnConsumedCapacity
+
+    refs = refs_tracker()
+    request_map = Dict{AbstractString, Any}("TableName" => table.name)
+
+    # only write if value isn't the default value
+    if consistant_read == false
+        request_map["ConsistentRead"] = consistant_read
+    end
+    if scan_index_forward == false
+        request_map["ScanIndexForward"] = scan_index_forward
+    end
+    if count
+        request_map["Select"] = "COUNT"
+    end
+    if segment != nothing || total_segments != nothing
+        if segment == nothing || total_segments == nothing
+            error("you must specify BOTH segment and total_segments or neither")
+        end
+        request_map["Segment"] = segment
+        request_map["TotalSegments"] = total_segments
+    end
+
+    if index_name != nothing
+        request_map["IndexName"] = index_name
+    end
+    if length(projection) != 0
+        request_map["ProjectionExpression"] = join([write_expression(refs, e) for e=projection], ", ")
+    elseif select_type != nothing
+        request_map["Select"] = select_type
+    end
+    if filter != nothing
+        request_map["FilterExpression"] = serialize_expression(filter, refs)
+    end
+    if limit != nothing
+        request_map["Limit"] = limit
+    end
+    set_expression_names_and_values(request_map, refs)
+
+    request_map
+end
+
+
+function scan(table :: DynamoLocalIndex, filter = no_conditions() :: CEBoolean;
+              projection=[] :: Array{DynamoReference}, consistant_read=true, scan_index_forward=true,
+              limit=nothing, select_type=nothing, count=false, segment=nothing, total_segments=nothing,
+              index_name=nothing)
+    request_map = scan_dict(table, filter=filter,
+                            projection=projection, consistant_read=consistant_read,
+                            scan_index_forward=scan_index_forward, limit=limit, select_type=select_type,
+                            count=count, segment=segment, total_segments=total_segments, index_name=index_name)
+
+    (status, res) = dynamo_execute(table.aws_env, "Scan", request_map)
+    check_status(status, res)
+
+    # Count -- number of items returned
+    # ScannedCount -- number of items accessed
+    # LastEvaluatedKey -- for ExclusiveStartKey use... if missing, everything was processed
+
+    result = []
+    for e=res["Items"]
+        push!(result, value_from_attributes(table.ty, e))
+    end
+    result
+end
+
+
+function scan(table :: DynamoLocalIndex, range_condition;
+              filter=nothing :: Union{Void, CEBoolean}, projection=[] :: Array{DynamoReference},
+              consistant_read=true, scan_index_forward=true, limit=nothing, select_type=nothing,
+              count=false, segment=nothing, total_segments=nothing)
+    scan(table.parent, range_condition;
+         filter=filter, projection=projection, consistant_read=consistant_read,
+         scan_index_forward=scan_index_forward, limit=limit, select_type=select_type,
+         count=count, segment=segment, total_segments=total_segments, index_name=table.index_name)
 end
