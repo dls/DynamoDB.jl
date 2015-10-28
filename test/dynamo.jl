@@ -197,3 +197,22 @@ get_item_dict(table :: DynamoTable, key, range=nothing;
 
 ## SCAN
 
+@test scan_dict(foo_range, attr("c") > 17) ==
+    Dict("TableName" => "foo_range",
+         "FilterExpression" => "(#1) > (:2)",
+         "ExpressionAttributeNames" => Dict("#1" => "c"),
+         "ExpressionAttributeValues" => Dict(":2" => Dict("N" => 17)))
+
+@test scan_dict(foo_range, attr("c") == 17;
+                projection=[attr("atty1"), attr("atty2")], consistant_read=false, scan_index_forward=false,
+                limit=31, segment=3, total_segments=17) ==
+    Dict("TableName" => "foo_range",
+         "ConsistentRead" => false,
+         "ScanIndexForward" => false,
+         "Segment" => 3,
+         "TotalSegments" => 17,
+         "Limit" => 31,
+         "FilterExpression" => "(#1) = (:2)",
+         "ProjectionExpression" => "#3, #4",
+         "ExpressionAttributeNames" => Dict("#1" => "c", "#3" => "atty1", "#4" => "atty2"),
+         "ExpressionAttributeValues" => Dict(":2" => Dict("N" => 17)))

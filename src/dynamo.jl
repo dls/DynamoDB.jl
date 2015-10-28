@@ -10,6 +10,11 @@
 # TODO -- optional whitelist and blacklist attribute values for persisting objects
 # TODO -- version columns + transactions -- perhaps in a higher level library?
 
+# TODO -- batch_* auto-multiplexing
+# TODO -- query, and scan iterators as standard
+# TODO -- dynamo streaming API
+# TODO -- dynamo table-level APIs (creation, deletion, etc)
+
 
 immutable DynamoTable
     ty :: Type
@@ -592,8 +597,8 @@ query(table :: DynamoGlobalIndex, range_condition;
 #  ___) | (_| (_| | | | |
 # |____/ \___\__,_|_| |_|
 
-function scan_dict(table :: DynamoLocalIndex, filter = no_conditions() :: CEBoolean;
-                   projection=[] :: Array{DynamoReference}, consistant_read=true, scan_index_forward=true,
+function scan_dict(table :: DynamoTable, filter = no_conditions() :: CEBoolean;
+                   projection=DynamoReference[] :: Array{DynamoReference}, consistant_read=true, scan_index_forward=true,
                    limit=nothing, select_type=nothing, count=false, segment=nothing, total_segments=nothing,
                    index_name=nothing)
 
@@ -610,9 +615,6 @@ function scan_dict(table :: DynamoLocalIndex, filter = no_conditions() :: CEBool
     if scan_index_forward == false
         request_map["ScanIndexForward"] = scan_index_forward
     end
-    if count
-        request_map["Select"] = "COUNT"
-    end
     if segment != nothing || total_segments != nothing
         if segment == nothing || total_segments == nothing
             error("you must specify BOTH segment and total_segments or neither")
@@ -621,16 +623,18 @@ function scan_dict(table :: DynamoLocalIndex, filter = no_conditions() :: CEBool
         request_map["TotalSegments"] = total_segments
     end
 
+    if filter != nothing
+        request_map["FilterExpression"] = serialize_expression(filter, refs)
+    end
     if index_name != nothing
         request_map["IndexName"] = index_name
     end
     if length(projection) != 0
         request_map["ProjectionExpression"] = join([write_expression(refs, e) for e=projection], ", ")
+    elseif count
+        request_map["Select"] = "Count"
     elseif select_type != nothing
         request_map["Select"] = select_type
-    end
-    if filter != nothing
-        request_map["FilterExpression"] = serialize_expression(filter, refs)
     end
     if limit != nothing
         request_map["Limit"] = limit
@@ -640,9 +644,8 @@ function scan_dict(table :: DynamoLocalIndex, filter = no_conditions() :: CEBool
     request_map
 end
 
-
-function scan(table :: DynamoLocalIndex, filter = no_conditions() :: CEBoolean;
-              projection=[] :: Array{DynamoReference}, consistant_read=true, scan_index_forward=true,
+function scan(table :: DynamoTable, filter = no_conditions() :: CEBoolean;
+              projection=DynamoReference[] :: Array{DynamoReference}, consistant_read=true, scan_index_forward=true,
               limit=nothing, select_type=nothing, count=false, segment=nothing, total_segments=nothing,
               index_name=nothing)
     request_map = scan_dict(table, filter=filter,
@@ -664,13 +667,20 @@ function scan(table :: DynamoLocalIndex, filter = no_conditions() :: CEBoolean;
     result
 end
 
+scan(table :: DynamoLocalIndex, filter = no_conditions() :: CEBoolean;
+     projection=DynamoReference[] :: Array{DynamoReference}, consistant_read=true, scan_index_forward=true,
+     limit=nothing, select_type=nothing, count=false, segment=nothing, total_segments=nothing) =
+    scan(table.parent, filter=filter;
+         projection=projection, consistant_read=consistant_read, scan_index_forward=scan_index_forward,
+         limit=limit, select_type=select_type, count=count, segment=segment, total_segments=total_segments,
+         index_name=table.index_name)
 
-function scan(table :: DynamoLocalIndex, range_condition;
-              filter=nothing :: Union{Void, CEBoolean}, projection=[] :: Array{DynamoReference},
-              consistant_read=true, scan_index_forward=true, limit=nothing, select_type=nothing,
-              count=false, segment=nothing, total_segments=nothing)
-    scan(table.parent, range_condition;
-         filter=filter, projection=projection, consistant_read=consistant_read,
-         scan_index_forward=scan_index_forward, limit=limit, select_type=select_type,
-         count=count, segment=segment, total_segments=total_segments, index_name=table.index_name)
-end
+scan(table :: DynamoGlobalIndex, filter = no_conditions() :: CEBoolean;
+     projection=DynamoReference[] :: Array{DynamoReference}, consistant_read=true, scan_index_forward=true,
+     limit=nothing, select_type=nothing, count=false, segment=nothing, total_segments=nothing) =
+    scan(table.parent, filter=filter;
+         projection=projection, consistant_read=consistant_read, scan_index_forward=scan_index_forward,
+         limit=limit, select_type=select_type, count=count, segment=segment, total_segments=total_segments,
+         index_name=table.index_name)
+
+
