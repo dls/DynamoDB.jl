@@ -512,7 +512,7 @@ const SELECT_SPECIFIC_ATTRIBUTES = "SPECIFIC_ATTRIBUTES"
 const SELECT_COUNT = "COUNT"
 
 function query_dict(table :: DynamoTable, hash_val, range_condition;
-               filter=nothing :: Union{Void, CEBoolean}, projection=[] :: Array,
+               filter=nothing :: Union{Void, CEBoolean}, projection=DynamoReference[] :: Array{DynamoReference},
                consistant_read=true, scan_index_forward=true, limit=nothing, index_name=nothing,
                select_type=nothing)
     refs = refs_tracker()
@@ -547,8 +547,8 @@ function query_dict(table :: DynamoTable, hash_val, range_condition;
     request_map
 end
 
-function query(table :: DynamoTable, hash_val, range_condition;
-               filter=nothing :: Union{Void, CEBoolean}, projection=[] :: Array{DynamoReference},
+function query(table :: DynamoTable, hash_val, range_condition = no_conditions();
+               filter=nothing :: Union{Void, CEBoolean}, projection=DynamoReference[] :: Array{DynamoReference},
                consistant_read=true, scan_index_forward=true, limit=nothing, index_name=nothing,
                select_type=nothing)
     request_map = query_dict(table, hash_val, range_condition; filter=filter, projection=projection,
@@ -623,7 +623,7 @@ function scan_dict(table :: DynamoTable, filter = no_conditions() :: CEBoolean;
         request_map["TotalSegments"] = total_segments
     end
 
-    if filter != nothing
+    if can_write_expression(filter)
         request_map["FilterExpression"] = serialize_expression(filter, refs)
     end
     if index_name != nothing
@@ -648,7 +648,7 @@ function scan(table :: DynamoTable, filter = no_conditions() :: CEBoolean;
               projection=DynamoReference[] :: Array{DynamoReference}, consistant_read=true, scan_index_forward=true,
               limit=nothing, select_type=nothing, count=false, segment=nothing, total_segments=nothing,
               index_name=nothing)
-    request_map = scan_dict(table, filter=filter,
+    request_map = scan_dict(table, filter;
                             projection=projection, consistant_read=consistant_read,
                             scan_index_forward=scan_index_forward, limit=limit, select_type=select_type,
                             count=count, segment=segment, total_segments=total_segments, index_name=index_name)

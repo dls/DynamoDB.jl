@@ -296,6 +296,10 @@ refs_tracker() = DynamoAttrAndValReferences(1, Dict{AbstractString, Any}(), Dict
                                             Dict{AbstractString, Any}(), Dict{Any, AbstractString}())
 
 
+can_write_expression(::Void) = false
+can_write_expression(::CETrue) = false
+can_write_expression(x) = true
+
 # Okay, with that out of the way, let's get serializin'
 write_expression(w :: DynamoAttrAndValReferences, e :: CESize) =
     "size($(write_expression(w, e.attr)))"

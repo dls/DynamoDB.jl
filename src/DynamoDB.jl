@@ -23,6 +23,9 @@ export dynamo_table, dynamo_local_index, dynamo_global_index
 # core operations
 export get_item, put_item, update_item, delete_item
 
+# high-read operations (easy to go over your read budget using them)
+export query, scan
+
 # batched opperations (these have gotchas... maybe read the docs before using)
 export batch_get_item, batch_write_item, batch_put_item, batch_delete_item
 
