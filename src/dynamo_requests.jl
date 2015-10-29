@@ -90,7 +90,7 @@ function dynamo_execute(env, action, json_data; current_retry=0)
     if status == 400
         if haskey(value, "__type") && ismatch(r"ProvisionedThroughputExceededException$", value["__type"])
             if current_retry > 9
-                @error "Request failed after 10 retries"
+                error("Request failed after 10 retries")
             end
 
             sleep(2^current_retry * 0.05)

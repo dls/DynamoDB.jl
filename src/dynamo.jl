@@ -500,6 +500,39 @@ end
 #  \__\_\\__,_|\___|_|   \__, |
 #                        |___/
 
+# TODO: is there a non-rewinding iterator type in julia? this thing will be a memory hog for large queries...
+type MultiRequestIterator{T}
+    data :: Array{T}
+    get_more_fn
+end
+can_load_more{T}(m :: MultiRequestIterator{T}) = m.get_more_fn != nothing
+function load_more(m :: MultiRequestIterator)
+    if m.get_more_fn != nothing
+        (next_vals, m.get_more_fn) = m.get_more_fn()
+        if length(next_vals) != 0
+            append!(m.data, next_vals)
+        end
+    end
+end
+
+function Base.readall{T}(m :: MultiRequestIterator{T})
+    while can_load_more(m)
+        load_more(m)
+    end
+    m.data
+end
+Base.start{T}(m :: MultiRequestIterator{T}) = 1
+function Base.done{T}(m :: MultiRequestIterator{T}, state)
+    if length(m.data) == state-1
+        while can_load_more(m) && length(m.data) == state-1
+            load_more(m)
+        end
+        return length(m.data) == state-1
+    end
+    return false
+end
+Base.next{T}(m :: MultiRequestIterator{T},state) = (m.data[state], state+1)
+
 
 # TODO: takes a max_vals, returns an interator, and prefetches via corouteines :D
     # -- via ExclusiveStartKey
@@ -598,18 +631,20 @@ query(table :: DynamoGlobalIndex, range_condition;
 # |____/ \___\__,_|_| |_|
 
 function scan_dict(table :: DynamoTable, filter = no_conditions() :: CEBoolean;
-                   projection=DynamoReference[] :: Array{DynamoReference}, consistant_read=true, scan_index_forward=true,
+                   projection=DynamoReference[] :: Array{DynamoReference}, consistant_read=false, scan_index_forward=true,
                    limit=nothing, select_type=nothing, count=false, segment=nothing, total_segments=nothing,
-                   index_name=nothing)
+                   index_name=nothing, start_key=nothing)
 
-    # TODO: ExclusiveStartKey
     # TODO: ReturnConsumedCapacity
 
     refs = refs_tracker()
     request_map = Dict{AbstractString, Any}("TableName" => table.name)
 
-    # only write if value isn't the default value
-    if consistant_read == false
+    if start_key != nothing
+        request_map["ExclusiveStartKey"] = start_key
+    end
+    # only write if value isn't the default value (false)
+    if consistant_read == true
         request_map["ConsistentRead"] = consistant_read
     end
     if scan_index_forward == false
@@ -645,41 +680,62 @@ function scan_dict(table :: DynamoTable, filter = no_conditions() :: CEBoolean;
 end
 
 function scan(table :: DynamoTable, filter = no_conditions() :: CEBoolean;
-              projection=DynamoReference[] :: Array{DynamoReference}, consistant_read=true, scan_index_forward=true,
+              projection=DynamoReference[] :: Array{DynamoReference}, consistant_read=false, scan_index_forward=true,
               limit=nothing, select_type=nothing, count=false, segment=nothing, total_segments=nothing,
               index_name=nothing)
-    request_map = scan_dict(table, filter;
-                            projection=projection, consistant_read=consistant_read,
-                            scan_index_forward=scan_index_forward, limit=limit, select_type=select_type,
-                            count=count, segment=segment, total_segments=total_segments, index_name=index_name)
 
-    (status, res) = dynamo_execute(table.aws_env, "Scan", request_map)
-    check_status(status, res)
+    ct = 0
+    function run_scan_part(start_key)
+        ct += 1
+        @show (ct, start_key)
 
-    # Count -- number of items returned
-    # ScannedCount -- number of items accessed
-    # LastEvaluatedKey -- for ExclusiveStartKey use... if missing, everything was processed
+        request_map = scan_dict(table, filter;
+                        projection=projection, consistant_read=consistant_read,
+                        scan_index_forward=scan_index_forward, limit=limit, select_type=select_type,
+                        count=count, segment=segment, total_segments=total_segments,
+                        index_name=index_name, start_key=start_key)
 
-    result = []
-    for e=res["Items"]
-        push!(result, value_from_attributes(table.ty, e))
+        (status, res) = dynamo_execute(table.aws_env, "Scan", request_map)
+        check_status(status, res)
+
+        if status != 200
+            error(status, res)
+        end
+
+        # TODO: potentially interesting return values?
+        # Count -- number of items returned
+        # ScannedCount -- number of items accessed
+
+        items = []
+        for e=res["Items"]
+            push!(items, value_from_attributes(table.ty, e))
+        end
+        items
+
+        if haskey(res, "LastEvaluatedKey")
+            return (items, () -> run_scan_part(res["LastEvaluatedKey"]))
+        else
+            return (items, nothing)
+        end
     end
-    result
+
+    MultiRequestIterator(run_scan_part(nothing)...)
 end
 
+
 scan(table :: DynamoLocalIndex, filter = no_conditions() :: CEBoolean;
-     projection=DynamoReference[] :: Array{DynamoReference}, consistant_read=true, scan_index_forward=true,
+     projection=DynamoReference[] :: Array{DynamoReference}, scan_index_forward=true,
      limit=nothing, select_type=nothing, count=false, segment=nothing, total_segments=nothing) =
     scan(table.parent, filter=filter;
-         projection=projection, consistant_read=consistant_read, scan_index_forward=scan_index_forward,
+         projection=projection, consistant_read=false, scan_index_forward=scan_index_forward,
          limit=limit, select_type=select_type, count=count, segment=segment, total_segments=total_segments,
          index_name=table.index_name)
 
 scan(table :: DynamoGlobalIndex, filter = no_conditions() :: CEBoolean;
-     projection=DynamoReference[] :: Array{DynamoReference}, consistant_read=true, scan_index_forward=true,
+     projection=DynamoReference[] :: Array{DynamoReference}, scan_index_forward=true,
      limit=nothing, select_type=nothing, count=false, segment=nothing, total_segments=nothing) =
     scan(table.parent, filter=filter;
-         projection=projection, consistant_read=consistant_read, scan_index_forward=scan_index_forward,
+         projection=projection, consistant_read=false, scan_index_forward=scan_index_forward,
          limit=limit, select_type=select_type, count=count, segment=segment, total_segments=total_segments,
          index_name=table.index_name)
 
