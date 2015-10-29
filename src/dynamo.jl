@@ -6,12 +6,10 @@
 #        |___/                                    |___/|_|
 
 
-# TODO -- exponential backoff algorithm with (logged?) warnings
 # TODO -- optional whitelist and blacklist attribute values for persisting objects
 # TODO -- version columns + transactions -- perhaps in a higher level library?
 
 # TODO -- batch_* auto-multiplexing
-# TODO -- query, and scan iterators as standard
 # TODO -- dynamo streaming API
 # TODO -- dynamo table-level APIs (creation, deletion, etc)
 
@@ -97,8 +95,7 @@ CC_NONE = ConsumedCapacity("NONE")
 # some helper functions
 function check_status(code, resp)
     if code != 200
-        println("\n\tFound (potential) error:\t")
-        @show (code, resp)
+        error(code, resp)
     end
 end
 
@@ -124,6 +121,7 @@ function get_item_query_dict(table :: DynamoTable, key, range, consistent_read, 
     request_map = Dict{Any, Any}("TableName" => table.name,
                                  "ConsistentRead" => consistent_read,
                                  "Key" => keydict(table, key, range))
+
     # TODO: "ReturnConsumedCapacity"
 
     if only_returning != nothing
@@ -183,6 +181,7 @@ function batch_get_item_dict(arr :: Array{BatchGetItemPart})
     for part=arr
         request_map = Dict{Any, Any}("ConsistentRead" => part.consistant_read,
                                      "Keys" => [keydict(part.table, e...) for e=part.keys])
+
         # TODO: "ReturnConsumedCapacity"
 
         if part.only_returning != nothing
@@ -286,9 +285,7 @@ end
 
 # https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchWriteItem.html
 
-# write and/or delete up to 25 items at a time
 # NOTE: you can't update items using this API call... use update_item instead
-
 
 # TODO: ReturnConsumedCapacity
 # TODO: ReturnItemCollectionMetrics
@@ -314,7 +311,7 @@ function batch_write_item_dict(parts :: Array{BatchWriteItemPart})
 
     function add_op(table_name, op)
         if current_ct == 25
-            push!(dicts, Dict("RequestItems" => current_dict))
+            push!(dicts, current_dict)
 
             current_ct = 0
             current_dict = Dict()
@@ -338,25 +335,34 @@ function batch_write_item_dict(parts :: Array{BatchWriteItemPart})
         end
     end
 
-    push!(dicts, Dict("RequestItems" => current_dict))
+    push!(dicts, current_dict)
     dicts
 end
 
 function batch_write_item(parts :: Array{BatchWriteItemPart})
     dicts = batch_write_item_dict(parts)
 
-    if length(dicts) != 1
-        # TODO:
-        error("batch_write_item is limited to 25 items by the DynamoDB official API... and this library doesn't (yet) support multiplexing")
-    end
-
     # TODO: ReturnConsumedCapacity
     # TODO: ReturnItemCollectionMetrics
 
-    (status, res) = dynamo_execute(parts[1].table.aws_env, "BatchWriteItem", dicts[1])
-    check_status(status, res)
+    function process_dict(d, current_retry=0)
+        (status, res) = dynamo_execute(parts[1].table.aws_env, "BatchWriteItem", Dict("RequestItems" => d))
+        check_status(status, res)
 
-    res
+        if length(res["UnprocessedItems"]) != 0
+            if current_retry > 9
+                error("Request failed after 10 retries")
+            end
+            sleep(2^current_retry * 0.05) # same exponential backoff as for dynamo_execute
+
+            @show (:retrying, res)
+            process_dict(res["UnprocessedItems"], current_retry+1)
+        end
+    end
+
+    for d=dicts
+        process_dict(d)
+    end
 end
 
 # helper/simpler methods
@@ -534,9 +540,6 @@ end
 Base.next{T}(m :: MultiRequestIterator{T},state) = (m.data[state], state+1)
 
 
-# TODO: takes a max_vals, returns an interator, and prefetches via corouteines :D
-    # -- via ExclusiveStartKey
-
 # TODO: ReturnConsumedCapacity
 
 const SELECT_ALL_ATTRIBUTES = "ALL_ATTRIBUTES"
@@ -547,12 +550,15 @@ const SELECT_COUNT = "COUNT"
 function query_dict(table :: DynamoTable, hash_val, range_condition;
                filter=nothing :: Union{Void, CEBoolean}, projection=DynamoReference[] :: Array{DynamoReference},
                consistant_read=true, scan_index_forward=true, limit=nothing, index_name=nothing,
-               select_type=nothing)
+               select_type=nothing, start_key=nothing)
     refs = refs_tracker()
     request_map = Dict{AbstractString, Any}("TableName" => table.name,
                        "KeyConditionExpression" => serialize_expression(and(attr(table.hash_key_name) == hash_val,
                                                                             range_condition), refs))
 
+    if start_key != nothing
+        request_map["ExclusiveStartKey"] = start_key
+    end
     # only write if value isn't the default value
     if consistant_read == false
         request_map["ConsistentRead"] = consistant_read
@@ -584,24 +590,34 @@ function query(table :: DynamoTable, hash_val, range_condition = no_conditions()
                filter=nothing :: Union{Void, CEBoolean}, projection=DynamoReference[] :: Array{DynamoReference},
                consistant_read=true, scan_index_forward=true, limit=nothing, index_name=nothing,
                select_type=nothing)
-    request_map = query_dict(table, hash_val, range_condition; filter=filter, projection=projection,
-                             consistant_read=consistant_read, scan_index_forward=scan_index_forward,
-                             limit=limit, index_name=index_name, select_type=select_type)
 
-    (status, res) = dynamo_execute(table.aws_env, "Query", request_map)
-    check_status(status, res)
+    function run_query_party(start_key)
+        request_map = query_dict(table, hash_val, range_condition; filter=filter, projection=projection,
+                                 consistant_read=consistant_read, scan_index_forward=scan_index_forward,
+                                 limit=limit, index_name=index_name, select_type=select_type)
 
-    # Count -- number of items returned
-    # ScannedCount -- number of items accessed
-    # LastEvaluatedKey -- for ExclusiveStartKey use... if missing, everything was processed
+        (status, res) = dynamo_execute(table.aws_env, "Query", request_map)
+        check_status(status, res)
 
-    result = []
-    for e=res["Items"]
-        push!(result, value_from_attributes(table.ty, e))
+        # TODO: potentially interesting return values?
+        # Count -- number of items returned
+        # ScannedCount -- number of items accessed
+
+        items = []
+        for e=res["Items"]
+            push!(items, value_from_attributes(table.ty, e))
+        end
+        items
+
+        if haskey(res, "LastEvaluatedKey")
+            return (items, () -> run_scan_part(res["LastEvaluatedKey"]))
+        else
+            return (items, nothing)
+        end
     end
-    result
-end
 
+    MultiRequestIterator(run_query_party(nothing)...)
+end
 
 query(table :: DynamoLocalIndex, range_condition;
       filter=nothing :: Union{Void, CEBoolean}, projection=[] :: Array{DynamoReference},
@@ -684,11 +700,7 @@ function scan(table :: DynamoTable, filter = no_conditions() :: CEBoolean;
               limit=nothing, select_type=nothing, count=false, segment=nothing, total_segments=nothing,
               index_name=nothing)
 
-    ct = 0
     function run_scan_part(start_key)
-        ct += 1
-        @show (ct, start_key)
-
         request_map = scan_dict(table, filter;
                         projection=projection, consistant_read=consistant_read,
                         scan_index_forward=scan_index_forward, limit=limit, select_type=select_type,
@@ -697,10 +709,6 @@ function scan(table :: DynamoTable, filter = no_conditions() :: CEBoolean;
 
         (status, res) = dynamo_execute(table.aws_env, "Scan", request_map)
         check_status(status, res)
-
-        if status != 200
-            error(status, res)
-        end
 
         # TODO: potentially interesting return values?
         # Count -- number of items returned
