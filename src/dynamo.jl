@@ -505,40 +505,6 @@ end
 #  \__\_\\__,_|\___|_|   \__, |
 #                        |___/
 
-# TODO: is there a non-rewinding iterator type in julia? this thing will be a memory hog for large queries...
-type MultiRequestIterator{T}
-    data :: Array{T}
-    get_more_fn
-end
-can_load_more{T}(m :: MultiRequestIterator{T}) = m.get_more_fn != nothing
-function load_more(m :: MultiRequestIterator)
-    if m.get_more_fn != nothing
-        (next_vals, m.get_more_fn) = m.get_more_fn()
-        if length(next_vals) != 0
-            append!(m.data, next_vals)
-        end
-    end
-end
-
-function Base.readall{T}(m :: MultiRequestIterator{T})
-    while can_load_more(m)
-        load_more(m)
-    end
-    m.data
-end
-Base.start{T}(m :: MultiRequestIterator{T}) = 1
-function Base.done{T}(m :: MultiRequestIterator{T}, state)
-    if length(m.data) == state-1
-        while can_load_more(m) && length(m.data) == state-1
-            load_more(m)
-        end
-        return length(m.data) == state-1
-    end
-    return false
-end
-Base.next{T}(m :: MultiRequestIterator{T},state) = (m.data[state], state+1)
-
-
 # TODO: ReturnConsumedCapacity
 
 const SELECT_ALL_ATTRIBUTES = "ALL_ATTRIBUTES"
@@ -593,7 +559,8 @@ function query(table :: DynamoTable, hash_val, range_condition = no_conditions()
     function run_query_part(start_key)
         request_map = query_dict(table, hash_val, range_condition; filter=filter, projection=projection,
                                  consistant_read=consistant_read, scan_index_forward=scan_index_forward,
-                                 limit=limit, index_name=index_name, select_type=select_type)
+                                 limit=limit, index_name=index_name, select_type=select_type,
+                                 start_key=start_key)
 
         (status, res) = dynamo_execute(table.aws_env, "Query", request_map)
         check_status(status, res)
@@ -602,20 +569,18 @@ function query(table :: DynamoTable, hash_val, range_condition = no_conditions()
         # Count -- number of items returned
         # ScannedCount -- number of items accessed
 
-        items = []
         for e=res["Items"]
-            push!(items, value_from_attributes(table.ty, e))
+            produce(value_from_attributes(table.ty, e))
         end
-        items
 
         if haskey(res, "LastEvaluatedKey")
-            return (items, () -> run_query_part(res["LastEvaluatedKey"]))
-        else
-            return (items, nothing)
+            res["Items"] = nothing
+            @show res
+            run_query_part(res["LastEvaluatedKey"])
         end
     end
 
-    MultiRequestIterator(run_query_party(nothing)...)
+    @task run_query_part(nothing)
 end
 
 query(table :: DynamoLocalIndex, range_condition;
@@ -713,20 +678,16 @@ function scan(table :: DynamoTable, filter = no_conditions() :: CEBoolean;
         # Count -- number of items returned
         # ScannedCount -- number of items accessed
 
-        items = []
         for e=res["Items"]
-            push!(items, value_from_attributes(table.ty, e))
+            produce(value_from_attributes(table.ty, e))
         end
-        items
 
         if haskey(res, "LastEvaluatedKey")
-            return (items, () -> run_scan_part(res["LastEvaluatedKey"]))
-        else
-            return (items, nothing)
+            run_scan_part(res["LastEvaluatedKey"])
         end
     end
 
-    MultiRequestIterator(run_scan_part(nothing)...)
+    @task run_scan_part(nothing)
 end
 
 
