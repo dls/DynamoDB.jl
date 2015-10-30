@@ -65,57 +65,6 @@ function hmacsha_digest(s::AbstractString, k::Union{ASCIIString, Vector{UInt8}},
     return sig
 end
 
-
-function md5_file(s::AbstractString)
-    f = open(s)
-    md = nothing
-    try
-        md = md5(f)
-    catch e
-        rethrow(e)
-    finally
-        close(f)
-    end
-    md
-end
-export md5_file
-
-function md5(s::AbstractString)
-    md = zeros(UInt8, 16)
-    assert(MD5(s, length(s), md) != C_NULL)
-    return md
-end
-
-function md5(s::IO)
-    evp_md_ctx = EVP_MD_CTX_create()
-    assert(evp_md_ctx != C_NULL)
-
-    md = zeros(UInt8, 16)
-    try
-        evp_md = EVP_md5()
-        assert(evp_md != C_NULL)
-
-        rc = EVP_DigestInit_ex(evp_md_ctx, evp_md, C_NULL)
-        assert(rc == 1)
-
-        while (!eof(s))
-            b = read(s, UInt8, min(nb_available(s), 65536))    # Read in 64 K chunks....
-
-            rc = EVP_DigestUpdate(evp_md_ctx, b, length(b));
-            assert(rc == 1)
-        end
-
-        rc = EVP_DigestFinal_ex(evp_md_ctx, md, C_NULL)
-        assert(rc == 1)
-
-    finally
-        EVP_MD_CTX_destroy(evp_md_ctx)
-    end
-
-    return md
-end
-export md5
-
 function sha256(s::AbstractString)
     sha = zeros(UInt8, 32)
     assert(SHA256(s, length(s), sha) != C_NULL)

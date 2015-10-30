@@ -76,6 +76,18 @@ item = get_item(table, id_key, 200)
 delete_item(table, id_key, 200)
 @test get_item(table, id_key, 200) == nothing
 
+
+items = batch_get_item(table, (id_key, 1), (id_key, 2), (id_key, 3), (id_key, 200))
+@assert length(items) == 3 # since 200 was deleted
+
+
+for e=scan(table; limit=10) # look at some random items in the table... without a limit this goes on forever
+    @assert e["id"] != nothing
+    @assert e["order"] != nothing
+end
+
+
+
 # cleanup. the projection asks DynamoDB to only return the order attribute to us.
 for e = query(table, id_key; projection=[attr("order")])
     delete_item(table, id_key, e["order"])

@@ -115,7 +115,7 @@ function batch_get_item(arr :: Array{BatchGetItemPart})
 
     table_lookup = Dict()
     for e = arr
-        type_lookup[e.table.name] = e.table
+        table_lookup[e.table.name] = e.table
     end
 
     result = []
@@ -486,6 +486,7 @@ function query(table :: DynamoTable, hash_val, range_condition = no_conditions()
                consistant_read=true, scan_index_forward=true, limit=nothing, index_name=nothing,
                select_type=nothing)
 
+    returned_ct = 0
     function run_query_part(start_key)
         request_map = query_dict(table, hash_val, range_condition; filter=filter, projection=projection,
                                  consistant_read=consistant_read, scan_index_forward=scan_index_forward,
@@ -501,6 +502,10 @@ function query(table :: DynamoTable, hash_val, range_condition = no_conditions()
 
         for e=res["Items"]
             produce(value_from_attributes(table.ty, e))
+            returned_ct += 1
+            if returned_ct == limit
+                return
+            end
         end
 
         if haskey(res, "LastEvaluatedKey")
@@ -593,6 +598,7 @@ function scan(table :: DynamoTable, filter = no_conditions() :: CEBoolean;
               limit=nothing, select_type=nothing, count=false, segment=nothing, total_segments=nothing,
               index_name=nothing)
 
+    returned_ct = 0
     function run_scan_part(start_key)
         request_map = scan_dict(table, filter;
                         projection=projection, consistant_read=consistant_read,
@@ -609,6 +615,10 @@ function scan(table :: DynamoTable, filter = no_conditions() :: CEBoolean;
 
         for e=res["Items"]
             produce(value_from_attributes(table.ty, e))
+            returned_ct += 1
+            if returned_ct == limit
+                return
+            end
         end
 
         if haskey(res, "LastEvaluatedKey")
