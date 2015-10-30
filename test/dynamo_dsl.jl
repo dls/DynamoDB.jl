@@ -122,7 +122,11 @@ check_expression(attr("foo") >= attr("bar"), "(#1) >= (#2)";
 
 check_expression(attr("foo") == 1, "(#1) = (:2)";
                  attrs = Dict("#1" => "foo"), vals = Dict(":2" => Dict("N" => "1")))
+check_expression(attr("foo") == WeakRef(1), "(#1) = (:2)";
+                 attrs = Dict("#1" => "foo"), vals = Dict(":2" => Dict("N" => "1")))
 check_expression(1 == attr("foo"), "(:1) = (#2)";
+                 attrs = Dict("#2" => "foo"), vals = Dict(":1" => Dict("N" => "1")))
+check_expression(WeakRef(1) == attr("foo"), "(:1) = (#2)";
                  attrs = Dict("#2" => "foo"), vals = Dict(":1" => Dict("N" => "1")))
 check_expression(attr("foo") == attr("bar"), "(#1) = (#2)";
                  attrs = Dict("#1" => "foo", "#2" => "bar"), vals = Dict())
@@ -139,11 +143,22 @@ check_expression(and(attr("foo"), attr("bar")), "(#1) AND (#2)";
 
 check_expression(or(attr("foo"), attr("bar")), "(#1) OR (#2)";
                  attrs = Dict("#1" => "foo", "#2" => "bar"), vals = Dict())
+check_expression(or(attr("foo") > 7, attr("bar") < 7), "((#1) > (:2)) OR ((#3) < (:2))";
+                 attrs = Dict("#1" => "foo", "#3" => "bar"), vals = Dict(":2" => Dict("N" => "7")))
+@test DynamoDB.can_write_expression(or(attr("foo"), no_conditions())) == false
+@test DynamoDB.can_write_expression(or(no_conditions(), attr("foo"))) == false
+@test DynamoDB.can_write_expression(or(attr("foo") > 7, no_conditions())) == false
+@test DynamoDB.can_write_expression(or(no_conditions(), attr("foo") > 7)) == false
+@test DynamoDB.can_write_expression(or(no_conditions(), no_conditions())) == false
 
 check_expression(!attr("foo"), "NOT (#1)";
                  attrs = Dict("#1" => "foo"), vals = Dict())
+check_expression(!(attr("foo") > 7), "NOT ((#1) > (:2))";
+                 attrs = Dict("#1" => "foo"), vals = Dict(":2" => Dict("N" => "7")))
 check_expression(not(attr("foo")), "NOT (#1)";
                  attrs = Dict("#1" => "foo"), vals = Dict())
+check_expression(not(attr("foo") > 7), "NOT ((#1) > (:2))";
+                 attrs = Dict("#1" => "foo"), vals = Dict(":2" => Dict("N" => "7")))
 
 check_expression(between(attr("foo"), 1, 2), "#1 BETWEEN :2 AND :3";
                  attrs = Dict("#1" => "foo"), vals = Dict(":2" => Dict("N" => "1"), ":3" => Dict("N" => "2")))
@@ -179,6 +194,7 @@ check_expression(and(no_conditions(), attr("foo") != 1), "(#1) <> (:2)";
                  attrs = Dict("#1" => "foo"), vals = Dict(":2" => Dict("N" => "1")))
 
 
+@test DynamoDB.can_write_expression(nothing) == false
 
 
 #  _   _           _       _

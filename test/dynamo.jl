@@ -13,9 +13,3 @@
 
 # see runtests.jl for Foo's definition
 
-foo_basic = dynamo_table(Foo, "foo_basic", :a, nothing)
-foo_basic_lsi = dynamo_local_index(foo_basic, "foo_basic_indexed_on_b", :b)
-foo_basic_gsi = dynamo_global_index(foo_basic, "foo_basic_global_index_on_b_a", :b, :a)
-
-foo_range = dynamo_table(Foo, "foo_range", :a, :b)
-foo_range_gsi = dynamo_global_index(foo_range, "foo_range_global_index_on_b_a", :b, :a)

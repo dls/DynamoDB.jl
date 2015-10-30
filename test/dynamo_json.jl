@@ -57,6 +57,14 @@ function check_round_trip(val)
     @test DynamoDB.value_from_attributes(DynamoDB.null_or_val(val)) == val
 end
 
+@test DynamoDB.real_val(21.0) == 21.0
+@test DynamoDB.bool_val("true") == true
+@test DynamoDB.bool_val("false") == false
+@test_throws ErrorException DynamoDB.bool_val("not a bool")
+
+@test_throws ErrorException DynamoDB.value_from_attributes(Dict("M" => 1, "L" => 2)) # two type decls
+@test_throws ErrorException DynamoDB.value_from_attributes(Dict("pants" => "frowny")) # unknown type decl
+
 # base types
 check_round_trip(nothing)
 check_round_trip(true)
