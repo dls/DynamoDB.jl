@@ -66,7 +66,7 @@ dynamo_global_index(parent :: DynamoTable, index_name, hash_key_name) =
 abstract DynamoExtension
 
 row_write_conditions(extension, table :: DynamoTable, value) = no_conditions()
-row_delete_conditions(extension, table :: DynamoTable, value) = no_conditions()
+row_delete_conditions(extension, table :: DynamoTable) = no_conditions()
 
 # filter columns, error on missing columns, etc
 transform_attrs_for_write(extension, table, attrs) = attrs
