@@ -9,10 +9,12 @@
 # TODO -- optional whitelist and blacklist attribute values for persisting objects
 # TODO -- version columns + transactions -- perhaps in a higher level library?
 
-# TODO -- batch_* auto-multiplexing
+# TODO -- some way of talking about / logging consumed capacity would be nice
+# TODO -- batch_get_item auto-multiplexing (100 item limit)
 # TODO -- dynamo streaming API
 # TODO -- dynamo table-level APIs (creation, deletion, etc)
 
+# TODO -- simple transactions -- perhaps in a higher level library?
 
 immutable DynamoTable
     ty :: Type
@@ -21,12 +23,30 @@ immutable DynamoTable
     range_key_name :: Union{AbstractString, Void}
 
     aws_env # security credentials, etc
+    version_attr
+    required_attrs
+    hidden_attrs
 end
 
-dynamo_table(ty :: Type, name, hash_key_name, range_key_name; env=nothing) =
-    DynamoTable(ty, string(name), string(hash_key_name), range_key_name == nothing ? nothing : string(range_key_name), env)
-dynamo_table(ty :: Type, name, hash_key_name; env=nothing) =
-    DynamoTable(ty, string(name), string(hash_key_name), nothing, env)
+dynamo_table(ty :: Type, name, hash_key_name, range_key_name;
+             env=nothing, version_attr=nothing, required_attrs=Set(), hidden_attrs=Set()) =
+    DynamoTable(ty, string(name), string(hash_key_name), range_key_name == nothing ? nothing : string(range_key_name),
+                env, version_attr, required_attrs, hidden_attrs)
+dynamo_table(ty :: Type, name, hash_key_name;
+             env=nothing, version_attr=nothing, required_attrs=Set(), hidden_attrs=Set()) =
+    DynamoTable(ty, string(name), string(hash_key_name), nothing,
+                env, version_attr, required_attrs, hidden_attrs)
+
+attribute_value(x :: Dict, table :: DynamoTable) =
+    attribute_value(x; hidden_attrs=table.hidden_attrs, required_attrs=table.required_attrs)
+
+function table_conditions(table :: DynamoTable)
+    if table.version_attr == nothing
+        return no_conditions()
+    end
+
+    attr(table.version_attr)
+end
 
 
 immutable DynamoLocalIndex
@@ -178,11 +198,11 @@ batch_get_item_part(table :: DynamoTable, keys...;
 function batch_get_item_dict(arr :: Array{BatchGetItemPart})
     m = Dict()
 
+    # TODO: "ReturnConsumedCapacity"
+
     for part=arr
         request_map = Dict{Any, Any}("ConsistentRead" => part.consistant_read,
                                      "Keys" => [keydict(part.table, e...) for e=part.keys])
-
-        # TODO: "ReturnConsumedCapacity"
 
         if part.only_returning != nothing
             refs = refs_tracker()
@@ -237,9 +257,9 @@ batch_get_item(table :: DynamoTable, keys...;
 # |_|    \__,_|\__|___|\__\___|_| |_| |_|
 
 function put_item_dict(table :: DynamoTable, item;
-                       conditional_expression=nothing, return_old=false)
+                       conditional_expression=no_conditions() :: CEBoolean, return_old=false)
     request_map = Dict("TableName" => table.name,
-                       "Item" => attribute_value(item)["M"])
+                       "Item" => attribute_value(item, table)["M"])
 
     if conditional_expression != nothing
         refs = refs_tracker()
@@ -257,7 +277,7 @@ function put_item_dict(table :: DynamoTable, item;
     request_map
 end
 
-function put_item(table :: DynamoTable, item; conditional_expression=nothing, return_old=false)
+function put_item(table :: DynamoTable, item; conditional_expression=no_conditions() :: CEBoolean, return_old=false)
     request_map = put_item_dict(table, item; conditional_expression=conditional_expression, return_old=return_old)
 
     (status, res) = dynamo_execute(table.aws_env, "PutItem", request_map)
@@ -331,7 +351,7 @@ function batch_write_item_dict(parts :: Array{BatchWriteItemPart})
             add_op(p.table.name, Dict("DeleteRequest" => Dict("Key" => keydict(p.table, e...))))
         end
         for e=p.items_to_write
-            add_op(p.table.name, Dict("PutRequest" => Dict("Item" => attribute_value(e)["M"])))
+            add_op(p.table.name, Dict("PutRequest" => Dict("Item" => attribute_value(e, p.table)["M"])))
         end
     end
 
@@ -575,7 +595,6 @@ function query(table :: DynamoTable, hash_val, range_condition = no_conditions()
 
         if haskey(res, "LastEvaluatedKey")
             res["Items"] = nothing
-            @show res
             run_query_part(res["LastEvaluatedKey"])
         end
     end
