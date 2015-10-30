@@ -36,7 +36,7 @@ get_item_dict(table :: DynamoTable, key, range=nothing;
 
 @test get_item_dict(foo_range, "asdf", 3) ==
     Dict("TableName" => "foo_range", "ConsistentRead" => true,
-         "Key" => Dict("a" => Dict("S" => "asdf"), "b" => Dict("N" => 3)))
+         "Key" => Dict("a" => Dict("S" => "asdf"), "b" => Dict("N" => "3")))
 
 @test get_item_dict(foo_basic, "asdf"; consistant_read=false) ==
     Dict("TableName" => "foo_basic", "ConsistentRead" => false,
@@ -51,22 +51,22 @@ get_item_dict(table :: DynamoTable, key, range=nothing;
 
 @test batch_get_item_dict([batch_get_item_part(foo_basic, 1, 2)]) ==
     Dict("RequestItems" => Dict("foo_basic" => Dict("ConsistentRead" => true,
-                                                    "Keys" => [Dict("a" => Dict("N" => 1)),
-                                                               Dict("a" => Dict("N" => 2))])))
+                                                    "Keys" => [Dict("a" => Dict("N" => "1")),
+                                                               Dict("a" => Dict("N" => "2"))])))
 
 @test batch_get_item_dict([batch_get_item_part(foo_range, (1, 2), (3, 4))]) ==
     Dict("RequestItems" => Dict("foo_range" =>
                                 Dict("ConsistentRead" => true,
-                                     "Keys" => [Dict("a" => Dict("N" => 1), "b" => Dict("N" => 2)),
-                                                Dict("a" => Dict("N" => 3), "b" => Dict("N" => 4))])))
+                                     "Keys" => [Dict("a" => Dict("N" => "1"), "b" => Dict("N" => "2")),
+                                                Dict("a" => Dict("N" => "3"), "b" => Dict("N" => "4"))])))
 
 @test batch_get_item_dict([batch_get_item_part(foo_basic, 1, 2),
                            batch_get_item_part(foo_range, (1, 2), (3, 4))]) ==
-    Dict("RequestItems"=>Dict("foo_basic"=>Dict("Keys"=>[Dict("a"=>Dict("N"=>1)),
-                                                         Dict("a"=>Dict("N"=>2))],
+    Dict("RequestItems"=>Dict("foo_basic"=>Dict("Keys"=>[Dict("a"=>Dict("N"=>"1")),
+                                                         Dict("a"=>Dict("N"=>"2"))],
                                                 "ConsistentRead"=>true),
-                              "foo_range"=>Dict("Keys"=>[Dict("a"=>Dict("N"=>1),"b"=>Dict("N"=>2)),
-                                                         Dict("a"=>Dict("N"=>3),"b"=>Dict("N"=>4))],
+                              "foo_range"=>Dict("Keys"=>[Dict("a"=>Dict("N"=>"1"),"b"=>Dict("N"=>"2")),
+                                                         Dict("a"=>Dict("N"=>"3"),"b"=>Dict("N"=>"4"))],
                                                 "ConsistentRead"=>true)))
 
 
@@ -74,89 +74,90 @@ get_item_dict(table :: DynamoTable, key, range=nothing;
 
 @test put_item_dict(foo_basic, Foo(1, 2)) ==
     Dict("TableName" => "foo_basic",
-         "Item" => Dict("a" => Dict("N" => 1),
-                        "b" => Dict("N" => 2)))
+         "Item" => Dict("a" => Dict("N" => "1"),
+                        "b" => Dict("N" => "2")))
 
 @test put_item_dict(foo_basic, Foo(1, 2); conditional_expression=attr("b") < 2) ==
     Dict("TableName" => "foo_basic",
-         "Item" => Dict("a" => Dict("N" => 1),
-                        "b" => Dict("N" => 2)),
+         "Item" => Dict("a" => Dict("N" => "1"),
+                        "b" => Dict("N" => "2")),
          "ConditionExpression" => "(#1) < (:2)",
          "ExpressionAttributeNames" => Dict("#1" => "b"),
-         "ExpressionAttributeValues" => Dict(":2" => Dict("N" => 2)))
+         "ExpressionAttributeValues" => Dict(":2" => Dict("N" => "2")))
 
 @test put_item_dict(foo_basic, Foo(1, 2); conditional_expression=attr("b") < 2, return_old=true) ==
     Dict("TableName" => "foo_basic",
-         "Item" => Dict("a" => Dict("N" => 1),
-                        "b" => Dict("N" => 2)),
+         "Item" => Dict("a" => Dict("N" => "1"),
+                        "b" => Dict("N" => "2")),
          "ReturnValues" => "ALL_OLD",
          "ConditionExpression" => "(#1) < (:2)",
          "ExpressionAttributeNames" => Dict("#1" => "b"),
-         "ExpressionAttributeValues" => Dict(":2" => Dict("N" => 2)))
+         "ExpressionAttributeValues" => Dict(":2" => Dict("N" => "2")))
 
 
 ## BATCH WRITE ITEM
 
 @test batch_write_item_dict([batch_delete_part(foo_basic, 1, 2)]) ==
-    [Dict("RequestItems" => Dict("foo_basic" => [Dict("DeleteRequest" =>
-                                                      Dict("Key" => Dict("a" => Dict("N" => 1)))),
-                                                 Dict("DeleteRequest" =>
-                                                      Dict("Key" => Dict("a" => Dict("N" => 2))))]))]
+    [Dict("foo_basic" => [Dict("DeleteRequest" =>
+                               Dict("Key" => Dict("a" => Dict("N" => "1")))),
+                          Dict("DeleteRequest" =>
+                               Dict("Key" => Dict("a" => Dict("N" => "2"))))])]
+
 
 @test batch_write_item_dict([batch_put_part(foo_basic, Foo(1, 2), Foo(3, 4))]) ==
-    [Dict("RequestItems" => Dict("foo_basic" => [Dict("PutRequest" =>
-                                                      Dict("Item" => Dict("a" => Dict("N" => 1),
-                                                                          "b" => Dict("N" => 2)))),
-                                                 Dict("PutRequest" =>
-                                                      Dict("Item" => Dict("a" => Dict("N" => 3),
-                                                                          "b" => Dict("N" => 4))))]))]
+    [Dict("foo_basic" => [Dict("PutRequest" =>
+                               Dict("Item" => Dict("a" => Dict("N" => "1"),
+                                                   "b" => Dict("N" => "2")))),
+                          Dict("PutRequest" =>
+                               Dict("Item" => Dict("a" => Dict("N" => "3"),
+                                                   "b" => Dict("N" => "4"))))])]
 
 @test batch_write_item_dict([batch_delete_part(foo_basic, 1, 2),
                              batch_put_part(foo_basic, Foo(1, 2), Foo(3, 4))]) ==
-    [Dict("RequestItems" => Dict("foo_basic" => [Dict("DeleteRequest" =>
-                                                      Dict("Key" => Dict("a" => Dict("N" => 1)))),
-                                                 Dict("DeleteRequest" =>
-                                                      Dict("Key" => Dict("a" => Dict("N" => 2)))),
-                                                 Dict("PutRequest" =>
-                                                      Dict("Item" => Dict("a" => Dict("N" => 1),
-                                                                          "b" => Dict("N" => 2)))),
-                                                 Dict("PutRequest" =>
-                                                      Dict("Item" => Dict("a" => Dict("N" => 3),
-                                                                          "b" => Dict("N" => 4))))]))]
+    [Dict("foo_basic" => [Dict("DeleteRequest" =>
+                               Dict("Key" => Dict("a" => Dict("N" => "1")))),
+                          Dict("DeleteRequest" =>
+                               Dict("Key" => Dict("a" => Dict("N" => "2")))),
+                          Dict("PutRequest" =>
+                               Dict("Item" => Dict("a" => Dict("N" => "1"),
+                                                   "b" => Dict("N" => "2")))),
+                          Dict("PutRequest" =>
+                               Dict("Item" => Dict("a" => Dict("N" => "3"),
+                                                   "b" => Dict("N" => "4"))))])]
 
 
 ## UPDATE ITEM
 
 @test update_item_dict(foo_basic, 1, nothing, [assign(attr("a"), 22)]) ==
     Dict("TableName" => "foo_basic",
-         "Key" => Dict("a" => Dict("N" => 1)),
+         "Key" => Dict("a" => Dict("N" => "1")),
          "ReturnValues" => "NONE",
          "UpdateExpression" => "SET #1 = :2",
          "ExpressionAttributeNames" => Dict("#1" => "a"),
-         "ExpressionAttributeValues" => Dict(":2" => Dict("N" => 22)))
+         "ExpressionAttributeValues" => Dict(":2" => Dict("N" => "22")))
 
 @test update_item_dict(foo_basic, 1, nothing, [assign(attr("a"), 22)]; conditions=attr("b") <= 2) ==
     Dict("TableName" => "foo_basic",
-         "Key" => Dict("a" => Dict("N" => 1)),
+         "Key" => Dict("a" => Dict("N" => "1")),
          "ReturnValues" => "NONE",
          "UpdateExpression" => "SET #1 = :2",
          "ConditionExpression" => "(#3) <= (:4)",
          "ExpressionAttributeNames" => Dict("#1" => "a", "#3" => "b"),
-         "ExpressionAttributeValues" => Dict(":2" => Dict("N" => 22), ":4" => Dict("N" => 2)))
+         "ExpressionAttributeValues" => Dict(":2" => Dict("N" => "22"), ":4" => Dict("N" => "2")))
 
 
 ## DELETE ITEM
 
 @test delete_item_dict(foo_basic, 1) ==
     Dict("TableName" => "foo_basic",
-         "Key" => Dict("a" => Dict("N" => 1)))
+         "Key" => Dict("a" => Dict("N" => "1")))
 
 @test delete_item_dict(foo_basic, 1; conditions=attr("b") > 2) ==
     Dict("TableName" => "foo_basic",
-         "Key" => Dict("a" => Dict("N" => 1)),
+         "Key" => Dict("a" => Dict("N" => "1")),
          "ConditionExpression" => "(#1) > (:2)",
          "ExpressionAttributeNames" => Dict("#1" => "b"),
-         "ExpressionAttributeValues" => Dict(":2" => Dict("N" => 2)))
+         "ExpressionAttributeValues" => Dict(":2" => Dict("N" => "2")))
 
 
 ## QUERY
@@ -165,8 +166,8 @@ get_item_dict(table :: DynamoTable, key, range=nothing;
     Dict("TableName" => "foo_range",
          "KeyConditionExpression" => "((#1) = (:2)) AND ((#3) > (:4))",
          "ExpressionAttributeNames" => Dict("#1" => "a", "#3" => "b"),
-         "ExpressionAttributeValues" => Dict(":2" => Dict("N" => 77),
-                                             ":4" => Dict("N" => 17)))
+         "ExpressionAttributeValues" => Dict(":2" => Dict("N" => "77"),
+                                             ":4" => Dict("N" => "17")))
 
 @test query_dict(foo_range, 77, attr("b") > 17;
                  filter=attr("c") != "cat", scan_index_forward=false, limit=100) ==
@@ -176,8 +177,8 @@ get_item_dict(table :: DynamoTable, key, range=nothing;
          "ScanIndexForward" => false,
          "Limit" => 100,
          "ExpressionAttributeNames" => Dict("#1" => "a", "#3" => "b", "#5" => "c"),
-         "ExpressionAttributeValues" => Dict(":2" => Dict("N" => 77),
-                                             ":4" => Dict("N" => 17),
+         "ExpressionAttributeValues" => Dict(":2" => Dict("N" => "77"),
+                                             ":4" => Dict("N" => "17"),
                                              ":6" => Dict("S" => "cat")))
 
 @test query_dict(foo_range, 77, attr("b") > 17;
@@ -190,8 +191,8 @@ get_item_dict(table :: DynamoTable, key, range=nothing;
          "ScanIndexForward" => false, "ConsistentRead" => false,
          "IndexName" => "MyIndex", "Limit" => 100,
          "ExpressionAttributeNames" => Dict("#1" => "a", "#3" => "b", "#5" => "one", "#6" => "two", "#7" => "c"),
-         "ExpressionAttributeValues" => Dict(":2" => Dict("N" => 77),
-                                             ":4" => Dict("N" => 17),
+         "ExpressionAttributeValues" => Dict(":2" => Dict("N" => "77"),
+                                             ":4" => Dict("N" => "17"),
                                              ":8" => Dict("S" => "cat")))
 
 
@@ -201,13 +202,13 @@ get_item_dict(table :: DynamoTable, key, range=nothing;
     Dict("TableName" => "foo_range",
          "FilterExpression" => "(#1) > (:2)",
          "ExpressionAttributeNames" => Dict("#1" => "c"),
-         "ExpressionAttributeValues" => Dict(":2" => Dict("N" => 17)))
+         "ExpressionAttributeValues" => Dict(":2" => Dict("N" => "17")))
 
 @test scan_dict(foo_range, attr("c") == 17;
-                projection=[attr("atty1"), attr("atty2")], consistant_read=false, scan_index_forward=false,
+                projection=[attr("atty1"), attr("atty2")], consistant_read=true, scan_index_forward=false,
                 limit=31, segment=3, total_segments=17) ==
     Dict("TableName" => "foo_range",
-         "ConsistentRead" => false,
+         "ConsistentRead" => true,
          "ScanIndexForward" => false,
          "Segment" => 3,
          "TotalSegments" => 17,
@@ -215,4 +216,4 @@ get_item_dict(table :: DynamoTable, key, range=nothing;
          "FilterExpression" => "(#1) = (:2)",
          "ProjectionExpression" => "#3, #4",
          "ExpressionAttributeNames" => Dict("#1" => "c", "#3" => "atty1", "#4" => "atty2"),
-         "ExpressionAttributeValues" => Dict(":2" => Dict("N" => 17)))
+         "ExpressionAttributeValues" => Dict(":2" => Dict("N" => "17")))

@@ -21,18 +21,18 @@ include("../src/dynamo_json.jl")
 
 @test null_or_val("foo") == Dict("S" => "foo")
 
-@test null_or_val(21) == Dict("N" => 21)
-@test null_or_val(21.1) == Dict("N" => 21.1)
+@test null_or_val(21) == Dict("N" => "21")
+@test null_or_val(21.1) == Dict("N" => "21.1")
 
-@test null_or_val([1, 2, 3]) == Dict("L" => [Dict("N" => 1), Dict("N" => 2), Dict("N" => 3)])
+@test null_or_val([1, 2, 3]) == Dict("L" => [Dict("N" => "1"), Dict("N" => "2"), Dict("N" => "3")])
 
 # result lists is (unsurprisingly) unordered...
 res = null_or_val(Set([1, 2, 3]))
 @test length(keys(res)) == 1
 @test length(res["NS"]) == 3
-@test contains(==, res["NS"], Dict("N" => 1))
-@test contains(==, res["NS"], Dict("N" => 2))
-@test contains(==, res["NS"], Dict("N" => 3))
+@test contains(==, res["NS"], Dict("N" => "1"))
+@test contains(==, res["NS"], Dict("N" => "2"))
+@test contains(==, res["NS"], Dict("N" => "3"))
 
 res = null_or_val(Set(["1", "2", "3"]))
 @test length(keys(res)) == 1
@@ -41,11 +41,13 @@ res = null_or_val(Set(["1", "2", "3"]))
 @test contains(==, res["SS"], Dict("S" => "2"))
 @test contains(==, res["SS"], Dict("S" => "3"))
 
-@test null_or_val(Dict("four" => 3, 7 => 11)) == Dict("M"=>Dict("four"=>Dict("N"=>3),"7"=>Dict("N"=>11)))
+@test null_or_val(Dict("four" => 3, 7 => 11)) == Dict("M"=>Dict("four"=>Dict("N"=>"3"),"7"=>Dict("N"=>"11")))
+@test attribute_value(Dict("four" => 3, 7 => 11); hidden_attrs=Set(["7"])) ==
+    Dict("M"=>Dict("four"=>Dict("N"=>"3")))
 
 # see runtests.jl for Foo's definition
 
-@test null_or_val(Foo(3, "fourty")) == Dict("M"=>Dict("a"=>Dict("N"=>3),"b"=>Dict("S"=>"fourty")))
+@test null_or_val(Foo(3, "fourty")) == Dict("M"=>Dict("a"=>Dict("N"=>"3"),"b"=>Dict("S"=>"fourty")))
 
 
 
