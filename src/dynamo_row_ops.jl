@@ -331,8 +331,8 @@ function update_item_dict(table :: DynamoTable, key, range, update_expression;
     refs = refs_tracker()
     request_map["UpdateExpression"] = serialize_updates(updates_to_send(table, update_expression), refs)
 
-    conditional_expression = and(conditions, row_write_conditions(table.extension, table, item))
-    if can_write_expression(conditional_expression)
+
+    if can_write_expression(conditions)
         request_map["ConditionExpression"] = serialize_expression(conditions, refs)
     end
 

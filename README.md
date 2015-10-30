@@ -1,5 +1,7 @@
 # DynamoDB
 
+[![Build Status](https://travis-ci.org/dls/DynamoDB.jl.svg?branch=master)](https://travis-ci.org/dls/DynamoDB.jl)
+
 Pure julia DynamoDB bindings. DynamoDB is a proprietary NoSQL database
 offered by amazon which provides virtually unlimited scaling at [very
 low cost](https://aws.amazon.com/dynamodb/pricing/).
