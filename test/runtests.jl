@@ -1,4 +1,4 @@
-#using DynamoDB
+module DynamoDBUnitTests
 using Base.Test
 
 type Foo
@@ -6,9 +6,13 @@ type Foo
     b
 end
 
-tic()
 include("dynamo_json.jl")
 include("dynamo_dsl.jl")
 include("dynamo.jl")
 include("dynamo_row_ops.jl")
-toc()
+end
+
+
+using DynamoDB
+using Base.Test
+include("integration_tests.jl")
