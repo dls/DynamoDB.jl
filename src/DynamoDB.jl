@@ -13,7 +13,9 @@ include("dynamo_requests.jl")
 
 include("dynamo_json.jl")
 include("dynamo_dsl.jl")
+
 include("dynamo.jl")
+include("dynamo_row_ops.jl")
 
 # package code goes here
 
