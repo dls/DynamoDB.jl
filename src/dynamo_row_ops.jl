@@ -400,8 +400,7 @@ function delete_item_dict(table :: DynamoTable, key, range=nothing;
 
     refs = refs_tracker()
 
-    conditional_expression = and(conditions, row_delete_conditions(table.extension, table, item))
-    if can_write_expression(conditional_expression)
+    if can_write_expression(conditions)
         request_map["ConditionExpression"] = serialize_expression(conditions, refs)
         set_expression_names_and_values(request_map, refs)
     end
