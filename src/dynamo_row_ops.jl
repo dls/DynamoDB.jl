@@ -1,3 +1,23 @@
+function set_expression_names_and_values(request_map, refs)
+    if length(refs.attrs) != 0
+       request_map["ExpressionAttributeNames"] = refs.attrs
+    end
+    if length(refs.vals) != 0
+        request_map["ExpressionAttributeValues"] = refs.vals
+    end
+end
+
+load_row(table, attr_dict; is_old=false) =
+    after_load(table.extension, table, value_from_attributes(table.ty, res["Item"]);
+               is_old=is_old)
+
+attributes_to_write(table, item) =
+    transform_attrs_for_write(table.extension, table, attribute_value(item)["M"])
+
+updates_to_send(table, updates) =
+    transform_update_expression(table.extension, table, updates)
+
+
 #     _    ____ ___      ____      _   ___ _
 #    / \  |  _ \_ _|_   / ___| ___| |_|_ _| |_ ___ _ __ ___
 #   / _ \ | |_) | |(_) | |  _ / _ \ __|| || __/ _ \ '_ ` _ \
@@ -30,7 +50,9 @@ function get_item(table :: DynamoTable, key, range=nothing;
     check_status(status, res)
 
     if haskey(res, "Item")
-        return value_from_attributes(table.ty, res["Item"])
+        return load_row(table, res["Item"])
+    else
+        return nothing
     end
 end
 
@@ -91,16 +113,19 @@ function batch_get_item(arr :: Array{BatchGetItemPart})
     (status, res) = dynamo_execute(arr[1].table.aws_env, "BatchGetItem", request_map)
     check_status(status, res)
 
-    type_lookup = Dict()
+    table_lookup = Dict()
     for e = arr
-        type_lookup[e.table.name] = e.table.ty
+        type_lookup[e.table.name] = e.table
     end
 
     result = []
     for (name, list)=res["Responses"]
-        ty = type_lookup[name]
+        table = table_lookup[name]
         for e=list
-            push!(result, value_from_attributes(ty, e))
+            item = load_row(table, e)
+            if item != nothing
+                push!(result, item)
+            end
         end
     end
 
@@ -126,11 +151,12 @@ batch_get_item(table :: DynamoTable, keys...;
 # |_|    \__,_|\__|___|\__\___|_| |_| |_|
 
 function put_item_dict(table :: DynamoTable, item;
-                       conditional_expression=no_conditions() :: CEBoolean, return_old=false)
+                       conditions=no_conditions() :: CEBoolean, return_old=false)
     request_map = Dict("TableName" => table.name,
-                       "Item" => attribute_value(item, table)["M"])
+                       "Item" => attributes_to_write(table, item))
 
-    if conditional_expression != nothing
+    conditional_expression = and(conditions, row_write_conditions(table.extension, table, item))
+    if can_write_expression(conditional_expression)
         refs = refs_tracker()
         request_map["ConditionExpression"] = write_expression(refs, conditional_expression)
         set_expression_names_and_values(request_map, refs)
@@ -153,7 +179,9 @@ function put_item(table :: DynamoTable, item; conditional_expression=no_conditio
     check_status(status, res)
 
     if return_old && haskey(res, "Attributes")
-        return value_from_attributes(table.ty, res["Attributes"])
+        return load_row(table.ty, res["Attributes"]; is_old=true)
+    else
+        return nothing
     end
 end
 
@@ -217,10 +245,16 @@ function batch_write_item_dict(parts :: Array{BatchWriteItemPart})
 
     for p=parts
         for e=p.keys_to_delete
+            if !can_batch_delete(p.table.extension, p.table)
+                error("Tried to batch delete from table which doesn't support it. (The table extension probably requires writing conditions)")
+            end
             add_op(p.table.name, Dict("DeleteRequest" => Dict("Key" => keydict(p.table, e...))))
         end
         for e=p.items_to_write
-            add_op(p.table.name, Dict("PutRequest" => Dict("Item" => attribute_value(e, p.table)["M"])))
+            if !can_batch_write(p.table.extension, p.table)
+                error("Tried to batch write to table which doesn't support it. (The table extension probably requires writing conditions)")
+            end
+            add_op(p.table.name, Dict("PutRequest" => Dict("Item" => attributes_to_write(p.table, e))))
         end
     end
 
@@ -238,11 +272,13 @@ function batch_write_item(parts :: Array{BatchWriteItemPart})
         (status, res) = dynamo_execute(parts[1].table.aws_env, "BatchWriteItem", Dict("RequestItems" => d))
         check_status(status, res)
 
+        # TODO -- log with capacity stuffs
+        # exponential backoff per the dynamodb docs
         if length(res["UnprocessedItems"]) != 0
             if current_retry > 9
                 error("Request failed after 10 retries")
             end
-            sleep(2^current_retry * 0.05) # same exponential backoff as for dynamo_execute
+            sleep(2^current_retry * 0.05)
 
             process_dict(res["UnprocessedItems"], current_retry+1)
         end
@@ -277,6 +313,7 @@ batch_delete_item(table :: DynamoTable, keys...) =
 #       |_|
 
 
+# TODO -- enum of something? Julia doesn't support that though...
 const RETURN_NONE = "NONE"
 const RETURN_ALL_OLD = "ALL_OLD"
 const RETURN_UPDATED_OLD = "UPDATED_OLD"
@@ -284,7 +321,7 @@ const RETURN_ALL_NEW = "ALL_NEW"
 const RETURN_UPDATED_NEW = "UPDATED_NEW"
 
 function update_item_dict(table :: DynamoTable, key, range, update_expression;
-                          conditions=nothing, returning=RETURN_NONE)
+                          conditions=no_conditions() :: CEBoolean, returning=RETURN_NONE)
     request_map = Dict("TableName" => table.name,
                        "Key" => keydict(table, key, range),
                        "ReturnValues" => returning)
@@ -292,18 +329,21 @@ function update_item_dict(table :: DynamoTable, key, range, update_expression;
     # ReturnConsumedCapacity == INDEXES | TOTAL | NONE
 
     refs = refs_tracker()
-    request_map["UpdateExpression"] = serialize_updates(update_expression, refs)
-    if conditions != nothing
+    request_map["UpdateExpression"] = serialize_updates(updates_to_send(table, update_expression), refs)
+
+    conditional_expression = and(conditions, row_write_conditions(table.extension, table, item))
+    if can_write_expression(conditional_expression)
         request_map["ConditionExpression"] = serialize_expression(conditions, refs)
     end
-    set_expression_names_and_values(request_map, refs)
 
+    set_expression_names_and_values(request_map, refs)
     request_map
 end
 
 function update_item(table :: DynamoTable, key, range, update_expression :: Array;
-                     conditions=nothing, returning=RETURN_NONE)
-    request_map = update_item_dict(table, key, range, update_expression; conditions=nothing)
+                     conditions=no_conditions() :: CEBoolean, returning=RETURN_NONE)
+    request_map = update_item_dict(table, key, range, update_expression;
+                                   conditions=conditions, returning=returning)
 
     # TODO: run it
     resp = Dict()
@@ -311,10 +351,10 @@ function update_item(table :: DynamoTable, key, range, update_expression :: Arra
     (status, res) = dynamo_execute(table.aws_env, "UpdateItem", request_map)
     check_status(status, res)
 
-    # TODO: only on success...
-
-    if returning == RETURN_ALL_OLD || returning == RETURN_ALL_NEW
-        value_from_attributes(table.ty, res["Attributes"])
+    if returning == RETURN_ALL_NEW
+        return load_row(table, res["Attributes"])
+    elseif returning == RETURN_ALL_OLD
+        return load_row(table, res["Attributes"]; is_old=true)
     elseif returning == RETURN_UPDATED_OLD || returning == RETURN_UPDATED_NEW
         value_from_attributes(Dict, res["Attributes"])
     end
@@ -322,16 +362,16 @@ end
 
 
 update_item(table :: DynamoTable, key, update_expression :: Array;
-            conditions=nothing, returning=RETURN_NONE) =
+            conditions=no_conditions() :: CEBoolean, returning=RETURN_NONE) =
     update_item(table, key, nothing, update_expression; conditions=conditions, returning=returning)
 
 
 update_item{T <: DynamoUpdateExpression}(table :: DynamoTable, key, range, update_expression :: T;
-            conditions=nothing, returning=RETURN_NONE) =
+            conditions=no_conditions() :: CEBoolean, returning=RETURN_NONE) =
     update_item(table, key, range, [update_expression]; conditions=conditions, returning=returning)
 
 update_item{T <: DynamoUpdateExpression}(table :: DynamoTable, key, update_expression :: T;
-            conditions=nothing, returning=RETURN_NONE) =
+            conditions=no_conditions() :: CEBoolean, returning=RETURN_NONE) =
     update_item(table, key, nothing, [update_expression]; conditions=conditions, returning=returning)
 
 
@@ -349,9 +389,8 @@ update_item{T <: DynamoUpdateExpression}(table :: DynamoTable, key, update_expre
 
 # https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_DeleteItem.html
 
-function delete_item_dict(table :: DynamoTable, key, range=nothing; conditions=nothing, return_old=false)
-    # "ConditionExpression"
-
+function delete_item_dict(table :: DynamoTable, key, range=nothing;
+                          conditions=no_conditions() :: CEBoolean, return_old=false)
     request_map = Dict("TableName" => table.name,
                        "Key" => keydict(table, key, range))
 
@@ -360,7 +399,9 @@ function delete_item_dict(table :: DynamoTable, key, range=nothing; conditions=n
     end
 
     refs = refs_tracker()
-    if conditions != nothing
+
+    conditional_expression = and(conditions, row_delete_conditions(table.extension, table, item))
+    if can_write_expression(conditional_expression)
         request_map["ConditionExpression"] = serialize_expression(conditions, refs)
         set_expression_names_and_values(request_map, refs)
     end
@@ -369,14 +410,15 @@ function delete_item_dict(table :: DynamoTable, key, range=nothing; conditions=n
 end
 
 
-function delete_item(table :: DynamoTable, key, range=nothing; conditions=nothing, return_old=false)
+function delete_item(table :: DynamoTable, key, range=nothing;
+                     conditions=no_conditions() :: CEBoolean, return_old=false)
     request_map = delete_item_dict(table, key, range; conditions=conditions, return_old=return_old)
 
     (status, res) = dynamo_execute(table.aws_env, "DeleteItem", request_map)
     check_status(status, res)
 
     if return_old
-        return value_from_attributes(table.ty, res["Attributes"])
+        return load_row(table, res["Attributes"]; is_old=true)
     end
 end
 
@@ -440,7 +482,7 @@ function query_dict(table :: DynamoTable, hash_val, range_condition;
     request_map
 end
 
-function query(table :: DynamoTable, hash_val, range_condition = no_conditions();
+function query(table :: DynamoTable, hash_val, range_condition = no_conditions() :: CEBoolean;
                filter=nothing :: Union{Void, CEBoolean}, projection=DynamoReference[] :: Array{DynamoReference},
                consistant_read=true, scan_index_forward=true, limit=nothing, index_name=nothing,
                select_type=nothing)
@@ -594,5 +636,3 @@ scan(table :: DynamoGlobalIndex, filter = no_conditions() :: CEBoolean;
          projection=projection, consistant_read=false, scan_index_forward=scan_index_forward,
          limit=limit, select_type=select_type, count=count, segment=segment, total_segments=total_segments,
          index_name=table.index_name)
-
-

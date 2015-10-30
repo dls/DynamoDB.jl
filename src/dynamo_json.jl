@@ -9,7 +9,9 @@ const null_attr = Dict{AbstractString, Any}("NULL" => true)
 # general objects
 function attribute_value(x)
     r = Dict{ASCIIString, Any}()
-    for e=fieldnames(x) ; r[string(e)] = null_or_val(x.(e)) ; end
+    for e=fieldnames(x)
+        r[string(e)] = null_or_val(x.(e))
+    end
     Dict{ASCIIString, Any}("M" => r)
 end
 

@@ -6,15 +6,17 @@
 #        |___/                                    |___/|_|
 
 
-# TODO -- optional whitelist and blacklist attribute values for persisting objects
-# TODO -- version columns + transactions -- perhaps in a higher level library?
-
 # TODO -- some way of talking about / logging consumed capacity would be nice
 # TODO -- batch_get_item auto-multiplexing (100 item limit)
 # TODO -- dynamo streaming API
 # TODO -- dynamo table-level APIs (creation, deletion, etc)
 
-# TODO -- simple transactions -- perhaps in a higher level library?
+# TODO -- simple transactions -- in a higher level library?
+
+
+# TODO -- optional whitelist and blacklist attribute values for persisting objects
+# TODO -- version columns + transactions -- perhaps in a higher level library?
+
 
 immutable DynamoTable
     ty :: Type
@@ -23,30 +25,14 @@ immutable DynamoTable
     range_key_name :: Union{AbstractString, Void}
 
     aws_env # security credentials, etc
-    version_attr
-    required_attrs
-    hidden_attrs
+    extension
 end
 
-dynamo_table(ty :: Type, name, hash_key_name, range_key_name;
-             env=nothing, version_attr=nothing, required_attrs=Set(), hidden_attrs=Set()) =
-    DynamoTable(ty, string(name), string(hash_key_name), range_key_name == nothing ? nothing : string(range_key_name),
-                env, version_attr, required_attrs, hidden_attrs)
-dynamo_table(ty :: Type, name, hash_key_name;
-             env=nothing, version_attr=nothing, required_attrs=Set(), hidden_attrs=Set()) =
-    DynamoTable(ty, string(name), string(hash_key_name), nothing,
-                env, version_attr, required_attrs, hidden_attrs)
-
-attribute_value(x :: Dict, table :: DynamoTable) =
-    attribute_value(x; hidden_attrs=table.hidden_attrs, required_attrs=table.required_attrs)
-
-function table_conditions(table :: DynamoTable)
-    if table.version_attr == nothing
-        return no_conditions()
-    end
-
-    attr(table.version_attr)
-end
+dynamo_table(ty :: Type, name, hash_key_name, range_key_name; env=nothing, extention=nothing) =
+    DynamoTable(ty, string(name), string(hash_key_name),
+                range_key_name == nothing ? nothing : string(range_key_name), env, extention)
+dynamo_table(ty :: Type, name, hash_key_name; env=nothing) =
+    DynamoTable(ty, string(name), string(hash_key_name), nothing, env, extention)
 
 
 immutable DynamoLocalIndex
@@ -70,6 +56,32 @@ dynamo_global_index(parent :: DynamoTable, index_name, hash_key_name, range_key_
     DynamoGlobalIndex(parent, string(index_name), string(hash_key_name), range_key_name == nothing ? nothing : string(range_key_name))
 dynamo_global_index(parent :: DynamoTable, index_name, hash_key_name) =
     DynamoGlobalIndex(parent, string(index_name), string(hash_key_name), nothing)
+
+
+
+
+
+# subclass this type, and override these functions to define global
+# custom behaviors for one or more of your dynamo tables
+abstract DynamoExtension
+
+row_write_conditions(extension, table :: DynamoTable, value) = no_conditions()
+row_delete_conditions(extension, table :: DynamoTable, value) = no_conditions()
+
+# filter columns, error on missing columns, etc
+transform_attrs_for_write(extension, table, attrs) = attrs
+transform_update_expression(extension, table, array) = array
+
+# NOTE: batch operations cannot contain condition expressions
+can_batch_write(extension, table :: DynamoTable) = true
+can_batch_delete(extension, table :: DynamoTable) = true
+
+# set up values, filter the row, etc
+after_load(extension, table :: DynamoTable, item; is_old=false) = item
+
+
+
+
 
 
 function _keydict(hashname, hashval, rangename, rangeval)
@@ -103,12 +115,12 @@ keydict(idx :: DynamoGlobalIndex, key, range=nothing) =
 # TODO: ... looks like there's not a standardized way to log in julia?
 # will read up on the logging options and get back to this
 
-immutable ConsumedCapacity
-    value :: AbstractString
-end
-CC_INDEXES = ConsumedCapacity("INDEXES")
-CC_TOTAL = ConsumedCapacity("TOTAL")
-CC_NONE = ConsumedCapacity("NONE")
+# immutable ConsumedCapacity
+#     value :: AbstractString
+# end
+# CC_INDEXES = ConsumedCapacity("INDEXES")
+# CC_TOTAL = ConsumedCapacity("TOTAL")
+# CC_NONE = ConsumedCapacity("NONE")
 
 
 
@@ -116,14 +128,5 @@ CC_NONE = ConsumedCapacity("NONE")
 function check_status(code, resp)
     if code != 200
         error(code, resp)
-    end
-end
-
-function set_expression_names_and_values(request_map, refs)
-    if length(refs.attrs) != 0
-       request_map["ExpressionAttributeNames"] = refs.attrs
-    end
-    if length(refs.vals) != 0
-        request_map["ExpressionAttributeValues"] = refs.vals
     end
 end

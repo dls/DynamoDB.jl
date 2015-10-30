@@ -5,11 +5,9 @@
 #   |_| |_____|____/ |_| |____/      |_| \_\     \____|\___/ \___/|____/
 
 
-# NOTE TO READERS:
-# This is a test case, so we'll be exercising advanced features
-# provided by DynamoDB. If you're looking for simple examples to start
-# from, please check out example.jl in the doc/ folder of this repo.
-
+# NOTE TO READERS: These tests validate against the json generation
+# functions. For tests dealing directly with DynamoDB, check out the
+# integration test.
 
 include("../src/dynamo_row_ops.jl")
 
@@ -77,7 +75,7 @@ get_item_dict(table :: DynamoTable, key, range=nothing;
          "Item" => Dict("a" => Dict("N" => "1"),
                         "b" => Dict("N" => "2")))
 
-@test put_item_dict(foo_basic, Foo(1, 2); conditional_expression=attr("b") < 2) ==
+@test put_item_dict(foo_basic, Foo(1, 2); conditions=attr("b") < 2) ==
     Dict("TableName" => "foo_basic",
          "Item" => Dict("a" => Dict("N" => "1"),
                         "b" => Dict("N" => "2")),
@@ -85,7 +83,7 @@ get_item_dict(table :: DynamoTable, key, range=nothing;
          "ExpressionAttributeNames" => Dict("#1" => "b"),
          "ExpressionAttributeValues" => Dict(":2" => Dict("N" => "2")))
 
-@test put_item_dict(foo_basic, Foo(1, 2); conditional_expression=attr("b") < 2, return_old=true) ==
+@test put_item_dict(foo_basic, Foo(1, 2); conditions=attr("b") < 2, return_old=true) ==
     Dict("TableName" => "foo_basic",
          "Item" => Dict("a" => Dict("N" => "1"),
                         "b" => Dict("N" => "2")),

@@ -42,8 +42,6 @@ res = null_or_val(Set(["1", "2", "3"]))
 @test contains(==, res["SS"], Dict("S" => "3"))
 
 @test null_or_val(Dict("four" => 3, 7 => 11)) == Dict("M"=>Dict("four"=>Dict("N"=>"3"),"7"=>Dict("N"=>"11")))
-@test attribute_value(Dict("four" => 3, 7 => 11); hidden_attrs=Set(["7"])) ==
-    Dict("M"=>Dict("four"=>Dict("N"=>"3")))
 
 # see runtests.jl for Foo's definition
 
