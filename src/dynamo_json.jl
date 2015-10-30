@@ -15,7 +15,7 @@ end
 
 # TODO -- binary?
 attribute_value(x :: Bool) = Dict{AbstractString, Any}("BOOL" => x)
-attribute_value(x :: Real) = Dict{AbstractString, Any}("N" => x)
+attribute_value(x :: Real) = Dict{AbstractString, Any}("N" => string(x))
 attribute_value(x :: AbstractString) = Dict{AbstractString, Any}("S" => x)
 
 attribute_value(x :: Array) =

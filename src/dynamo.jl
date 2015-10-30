@@ -355,7 +355,6 @@ function batch_write_item(parts :: Array{BatchWriteItemPart})
             end
             sleep(2^current_retry * 0.05) # same exponential backoff as for dynamo_execute
 
-            @show (:retrying, res)
             process_dict(res["UnprocessedItems"], current_retry+1)
         end
     end
@@ -591,7 +590,7 @@ function query(table :: DynamoTable, hash_val, range_condition = no_conditions()
                consistant_read=true, scan_index_forward=true, limit=nothing, index_name=nothing,
                select_type=nothing)
 
-    function run_query_party(start_key)
+    function run_query_part(start_key)
         request_map = query_dict(table, hash_val, range_condition; filter=filter, projection=projection,
                                  consistant_read=consistant_read, scan_index_forward=scan_index_forward,
                                  limit=limit, index_name=index_name, select_type=select_type)
@@ -610,7 +609,7 @@ function query(table :: DynamoTable, hash_val, range_condition = no_conditions()
         items
 
         if haskey(res, "LastEvaluatedKey")
-            return (items, () -> run_scan_part(res["LastEvaluatedKey"]))
+            return (items, () -> run_query_part(res["LastEvaluatedKey"]))
         else
             return (items, nothing)
         end
