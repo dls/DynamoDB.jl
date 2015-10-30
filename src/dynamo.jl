@@ -28,11 +28,11 @@ immutable DynamoTable
     extension
 end
 
-dynamo_table(ty :: Type, name, hash_key_name, range_key_name; env=nothing, extention=nothing) =
+dynamo_table(ty :: Type, name, hash_key_name, range_key_name; env=nothing, extension=nothing) =
     DynamoTable(ty, string(name), string(hash_key_name),
-                range_key_name == nothing ? nothing : string(range_key_name), env, extention)
-dynamo_table(ty :: Type, name, hash_key_name; env=nothing) =
-    DynamoTable(ty, string(name), string(hash_key_name), nothing, env, extention)
+                range_key_name == nothing ? nothing : string(range_key_name), env, extension)
+dynamo_table(ty :: Type, name, hash_key_name; env=nothing, extension=nothing) =
+    DynamoTable(ty, string(name), string(hash_key_name), nothing, env, extension)
 
 
 immutable DynamoLocalIndex
@@ -102,7 +102,7 @@ function keydict(idx :: DynamoLocalIndex, key, range=nothing)
     if range == nothing
         error("Attempt to use a local secondary index to access a table via hash key... use the table instead")
     else
-        return Dict{AbstractString, Any}(idx.table.hash_key_name => null_or_val(key),
+        return Dict{AbstractString, Any}(idx.parent.hash_key_name => null_or_val(key),
                                          idx.range_key_name => null_or_val(range))
     end
 end

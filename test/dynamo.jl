@@ -30,17 +30,17 @@ foo_range_gsi = dynamo_global_index(foo_range, "foo_range_global_index_on_b_a", 
 @test_throws ErrorException DynamoDB.keydict(foo_basic_lsi, 1)
 
 @test DynamoDB.keydict(foo_basic_gsi, 1, 2) == Dict("b" => Dict("N" => "1"), "a" => Dict("N" => "2"))
-@test_throws ErrorException DynamoDB.keydict(foo_basic_gsi, 1)
+@test DynamoDB.keydict(foo_basic_gsi, 1) == Dict("b" => Dict("N" => "1"), "a" => Dict("NULL" => true))
 
 @test_throws ErrorException DynamoDB.keydict(foo_basic_gsi_no_idx, 1, 2)
-@test DynamoDB.keydict(foo_basic_gsi, 1) == Dict("b" => Dict("N" => "1"))
+@test DynamoDB.keydict(foo_basic_gsi, 1) == Dict("b" => Dict("N" => "1"), "a" => Dict("NULL" => true))
 
 
 @test DynamoDB.keydict(foo_range, 1, 2) == Dict("a" => Dict("N" => "1"), "b" => Dict("N" => "2"))
-@test_throws ErrorException DynamoDB.keydict(foo_range, 1)
+@test DynamoDB.keydict(foo_range, 1) == Dict("a" => Dict("N" => "1"), "b" => Dict("NULL" => true))
 
 @test DynamoDB.keydict(foo_range_gsi, 1, 2) == Dict("b" => Dict("N" => "1"), "a" => Dict("N" => "2"))
-@test_throws ErrorException DynamoDB.keydict(foo_range_gsi, 1)
+@test DynamoDB.keydict(foo_range_gsi, 1) == Dict("b" => Dict("N" => "1"), "a" => Dict("NULL" => true))
 
 
 @test_throws ErrorException DynamoDB.check_status(404, "test")
