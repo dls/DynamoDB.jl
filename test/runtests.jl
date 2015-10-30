@@ -1,3 +1,4 @@
+using AWS
 using DynamoDB
 using Base.Test
 
