@@ -8,7 +8,7 @@ function set_expression_names_and_values(request_map, refs)
 end
 
 load_row(table, attr_dict; is_old=false) =
-    after_load(table.extension, table, value_from_attributes(table.ty, res["Item"]);
+    after_load(table.extension, table, value_from_attributes(table.ty, attr_dict);
                is_old=is_old)
 
 attributes_to_write(table, item) =
@@ -172,8 +172,8 @@ function put_item_dict(table :: DynamoTable, item;
     request_map
 end
 
-function put_item(table :: DynamoTable, item; conditional_expression=no_conditions() :: CEBoolean, return_old=false)
-    request_map = put_item_dict(table, item; conditional_expression=conditional_expression, return_old=return_old)
+function put_item(table :: DynamoTable, item; conditions=no_conditions() :: CEBoolean, return_old=false)
+    request_map = put_item_dict(table, item; conditions=conditions, return_old=return_old)
 
     (status, res) = dynamo_execute(table.aws_env, "PutItem", request_map)
     check_status(status, res)
