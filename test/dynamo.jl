@@ -11,8 +11,6 @@
 # from, please check out example.jl in the doc/ folder of this repo.
 
 
-include("../src/dynamo.jl")
-
 # see runtests.jl for Foo's definition
 
 foo_basic = dynamo_table(Foo, "foo_basic", :a, nothing)

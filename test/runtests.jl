@@ -1,4 +1,4 @@
-module DynamoDBUnitTests
+using DynamoDB
 using Base.Test
 
 type Foo
@@ -6,13 +6,11 @@ type Foo
     b
 end
 
+# tests on component functions
 include("dynamo_json.jl")
 include("dynamo_dsl.jl")
 include("dynamo.jl")
 include("dynamo_row_ops.jl")
-end
 
-
-using DynamoDB
-using Base.Test
+# live tests
 include("integration_tests.jl")

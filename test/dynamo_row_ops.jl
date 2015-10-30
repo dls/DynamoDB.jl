@@ -9,7 +9,6 @@
 # functions. For tests dealing directly with DynamoDB, check out the
 # integration test.
 
-include("../src/dynamo_row_ops.jl")
 
 # see runtests.jl for Foo's definition
 
@@ -26,7 +25,7 @@ foo_range_gsi = dynamo_global_index(foo_range, "foo_range_global_index_on_b_a", 
 # helper to make get_item_query_dict match get_item's iterface
 get_item_dict(table :: DynamoTable, key, range=nothing;
               consistant_read=true, only_returning=nothing :: Union{Void, Array{DynamoReference}}) =
-    get_item_query_dict(table, key, range, consistant_read, only_returning)
+    DynamoDB.get_item_query_dict(table, key, range, consistant_read, only_returning)
 
 @test get_item_dict(foo_basic, "asdf") ==
     Dict("TableName" => "foo_basic", "ConsistentRead" => true,
@@ -47,19 +46,19 @@ get_item_dict(table :: DynamoTable, key, range=nothing;
 
 ## BATCH_GET_ITEM
 
-@test batch_get_item_dict([batch_get_item_part(foo_basic, 1, 2)]) ==
+@test DynamoDB.batch_get_item_dict([DynamoDB.batch_get_item_part(foo_basic, 1, 2)]) ==
     Dict("RequestItems" => Dict("foo_basic" => Dict("ConsistentRead" => true,
                                                     "Keys" => [Dict("a" => Dict("N" => "1")),
                                                                Dict("a" => Dict("N" => "2"))])))
 
-@test batch_get_item_dict([batch_get_item_part(foo_range, (1, 2), (3, 4))]) ==
+@test DynamoDB.batch_get_item_dict([DynamoDB.batch_get_item_part(foo_range, (1, 2), (3, 4))]) ==
     Dict("RequestItems" => Dict("foo_range" =>
                                 Dict("ConsistentRead" => true,
                                      "Keys" => [Dict("a" => Dict("N" => "1"), "b" => Dict("N" => "2")),
                                                 Dict("a" => Dict("N" => "3"), "b" => Dict("N" => "4"))])))
 
-@test batch_get_item_dict([batch_get_item_part(foo_basic, 1, 2),
-                           batch_get_item_part(foo_range, (1, 2), (3, 4))]) ==
+@test DynamoDB.batch_get_item_dict([DynamoDB.batch_get_item_part(foo_basic, 1, 2),
+                                    DynamoDB.batch_get_item_part(foo_range, (1, 2), (3, 4))]) ==
     Dict("RequestItems"=>Dict("foo_basic"=>Dict("Keys"=>[Dict("a"=>Dict("N"=>"1")),
                                                          Dict("a"=>Dict("N"=>"2"))],
                                                 "ConsistentRead"=>true),
@@ -70,12 +69,12 @@ get_item_dict(table :: DynamoTable, key, range=nothing;
 
 ## PUT ITEM
 
-@test put_item_dict(foo_basic, Foo(1, 2)) ==
+@test DynamoDB.put_item_dict(foo_basic, Foo(1, 2)) ==
     Dict("TableName" => "foo_basic",
          "Item" => Dict("a" => Dict("N" => "1"),
                         "b" => Dict("N" => "2")))
 
-@test put_item_dict(foo_basic, Foo(1, 2); conditions=attr("b") < 2) ==
+@test DynamoDB.put_item_dict(foo_basic, Foo(1, 2); conditions=attr("b") < 2) ==
     Dict("TableName" => "foo_basic",
          "Item" => Dict("a" => Dict("N" => "1"),
                         "b" => Dict("N" => "2")),
@@ -83,7 +82,7 @@ get_item_dict(table :: DynamoTable, key, range=nothing;
          "ExpressionAttributeNames" => Dict("#1" => "b"),
          "ExpressionAttributeValues" => Dict(":2" => Dict("N" => "2")))
 
-@test put_item_dict(foo_basic, Foo(1, 2); conditions=attr("b") < 2, return_old=true) ==
+@test DynamoDB.put_item_dict(foo_basic, Foo(1, 2); conditions=attr("b") < 2, return_old=true) ==
     Dict("TableName" => "foo_basic",
          "Item" => Dict("a" => Dict("N" => "1"),
                         "b" => Dict("N" => "2")),
@@ -95,14 +94,14 @@ get_item_dict(table :: DynamoTable, key, range=nothing;
 
 ## BATCH WRITE ITEM
 
-@test batch_write_item_dict([batch_delete_part(foo_basic, 1, 2)]) ==
+@test DynamoDB.batch_write_item_dict([DynamoDB.batch_delete_part(foo_basic, 1, 2)]) ==
     [Dict("foo_basic" => [Dict("DeleteRequest" =>
                                Dict("Key" => Dict("a" => Dict("N" => "1")))),
                           Dict("DeleteRequest" =>
                                Dict("Key" => Dict("a" => Dict("N" => "2"))))])]
 
 
-@test batch_write_item_dict([batch_put_part(foo_basic, Foo(1, 2), Foo(3, 4))]) ==
+@test DynamoDB.batch_write_item_dict([DynamoDB.batch_put_part(foo_basic, Foo(1, 2), Foo(3, 4))]) ==
     [Dict("foo_basic" => [Dict("PutRequest" =>
                                Dict("Item" => Dict("a" => Dict("N" => "1"),
                                                    "b" => Dict("N" => "2")))),
@@ -110,8 +109,8 @@ get_item_dict(table :: DynamoTable, key, range=nothing;
                                Dict("Item" => Dict("a" => Dict("N" => "3"),
                                                    "b" => Dict("N" => "4"))))])]
 
-@test batch_write_item_dict([batch_delete_part(foo_basic, 1, 2),
-                             batch_put_part(foo_basic, Foo(1, 2), Foo(3, 4))]) ==
+@test DynamoDB.batch_write_item_dict([DynamoDB.batch_delete_part(foo_basic, 1, 2),
+                                      DynamoDB.batch_put_part(foo_basic, Foo(1, 2), Foo(3, 4))]) ==
     [Dict("foo_basic" => [Dict("DeleteRequest" =>
                                Dict("Key" => Dict("a" => Dict("N" => "1")))),
                           Dict("DeleteRequest" =>
@@ -126,7 +125,7 @@ get_item_dict(table :: DynamoTable, key, range=nothing;
 
 ## UPDATE ITEM
 
-@test update_item_dict(foo_basic, 1, nothing, [assign(attr("a"), 22)]) ==
+@test DynamoDB.update_item_dict(foo_basic, 1, nothing, [assign(attr("a"), 22)]) ==
     Dict("TableName" => "foo_basic",
          "Key" => Dict("a" => Dict("N" => "1")),
          "ReturnValues" => "NONE",
@@ -134,7 +133,7 @@ get_item_dict(table :: DynamoTable, key, range=nothing;
          "ExpressionAttributeNames" => Dict("#1" => "a"),
          "ExpressionAttributeValues" => Dict(":2" => Dict("N" => "22")))
 
-@test update_item_dict(foo_basic, 1, nothing, [assign(attr("a"), 22)]; conditions=attr("b") <= 2) ==
+@test DynamoDB.update_item_dict(foo_basic, 1, nothing, [assign(attr("a"), 22)]; conditions=attr("b") <= 2) ==
     Dict("TableName" => "foo_basic",
          "Key" => Dict("a" => Dict("N" => "1")),
          "ReturnValues" => "NONE",
@@ -146,11 +145,11 @@ get_item_dict(table :: DynamoTable, key, range=nothing;
 
 ## DELETE ITEM
 
-@test delete_item_dict(foo_basic, 1) ==
+@test DynamoDB.delete_item_dict(foo_basic, 1) ==
     Dict("TableName" => "foo_basic",
          "Key" => Dict("a" => Dict("N" => "1")))
 
-@test delete_item_dict(foo_basic, 1; conditions=attr("b") > 2) ==
+@test DynamoDB.delete_item_dict(foo_basic, 1; conditions=attr("b") > 2) ==
     Dict("TableName" => "foo_basic",
          "Key" => Dict("a" => Dict("N" => "1")),
          "ConditionExpression" => "(#1) > (:2)",
@@ -160,14 +159,14 @@ get_item_dict(table :: DynamoTable, key, range=nothing;
 
 ## QUERY
 
-@test query_dict(foo_range, 77, attr("b") > 17) ==
+@test DynamoDB.query_dict(foo_range, 77, attr("b") > 17) ==
     Dict("TableName" => "foo_range",
          "KeyConditionExpression" => "((#1) = (:2)) AND ((#3) > (:4))",
          "ExpressionAttributeNames" => Dict("#1" => "a", "#3" => "b"),
          "ExpressionAttributeValues" => Dict(":2" => Dict("N" => "77"),
                                              ":4" => Dict("N" => "17")))
 
-@test query_dict(foo_range, 77, attr("b") > 17;
+@test DynamoDB.query_dict(foo_range, 77, attr("b") > 17;
                  filter=attr("c") != "cat", scan_index_forward=false, limit=100) ==
     Dict("TableName" => "foo_range",
          "KeyConditionExpression" => "((#1) = (:2)) AND ((#3) > (:4))",
@@ -179,7 +178,7 @@ get_item_dict(table :: DynamoTable, key, range=nothing;
                                              ":4" => Dict("N" => "17"),
                                              ":6" => Dict("S" => "cat")))
 
-@test query_dict(foo_range, 77, attr("b") > 17;
+@test DynamoDB.query_dict(foo_range, 77, attr("b") > 17;
                  projection = [attr("one"), attr("two")], consistant_read=false, index_name="MyIndex",
                  filter=attr("c") != "cat", scan_index_forward=false, limit=100) ==
     Dict("TableName" => "foo_range",
@@ -196,13 +195,13 @@ get_item_dict(table :: DynamoTable, key, range=nothing;
 
 ## SCAN
 
-@test scan_dict(foo_range, attr("c") > 17) ==
+@test DynamoDB.scan_dict(foo_range, attr("c") > 17) ==
     Dict("TableName" => "foo_range",
          "FilterExpression" => "(#1) > (:2)",
          "ExpressionAttributeNames" => Dict("#1" => "c"),
          "ExpressionAttributeValues" => Dict(":2" => Dict("N" => "17")))
 
-@test scan_dict(foo_range, attr("c") == 17;
+@test DynamoDB.scan_dict(foo_range, attr("c") == 17;
                 projection=[attr("atty1"), attr("atty2")], consistant_read=true, scan_index_forward=false,
                 limit=31, segment=3, total_segments=17) ==
     Dict("TableName" => "foo_range",

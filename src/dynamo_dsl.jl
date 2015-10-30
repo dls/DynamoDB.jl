@@ -83,6 +83,7 @@ no_conditions() = CETrue()
 immutable CESize <: CEFnVal
     attr :: DynamoReference
 end
+import Base.size
 size(attr :: DynamoReference) = CESize(attr)
 
 immutable CEBeginsWith <: CEBoolean

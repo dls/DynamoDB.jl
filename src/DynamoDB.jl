@@ -20,7 +20,8 @@ include("dynamo_row_ops.jl")
 # package code goes here
 
 # core types for modeling dynamo tables/indexes
-export dynamo_table, dynamo_local_index, dynamo_global_index
+export DynamoTable, DynamoLocalIndex, DynamoGlobalIndex,
+       dynamo_table, dynamo_local_index, dynamo_global_index
 
 # core operations
 export get_item, put_item, update_item, delete_item
@@ -34,8 +35,8 @@ export batch_get_item, batch_write_item, batch_put_item, batch_delete_item
 
 export attribute, attr, getindex
 export no_conditions, size, begins_with, contains, is_string, is_string_set, is_real, is_real_set,
-       is_binary, is_bool, is_null, is_list, is_map, is_document, exists, not_exists, <, >, <=, >=,
-       eq, !=, and, or, !, not, between
+       is_binary, is_binary_set, is_bool, is_null, is_list, is_map, is_document, exists, not_exists,
+       <, >, <=, >=, eq, !=, and, or, !, not, between
 export get_or_else, append_to_list, assign, add_to_set, remove_from_set, delete
 
 end # module

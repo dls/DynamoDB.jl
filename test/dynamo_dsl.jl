@@ -4,7 +4,7 @@
 #   | | | |___ ___) || |  ___) |_____|  _ <_____| |_| | |_| | |_| | |_| |
 #   |_| |_____|____/ |_| |____/      |_| \_\     \____|\___/ \___/|____/
 
-include("../src/dynamo_dsl.jl")
+
 
 # base attribute reference types
 @test attr("foo").name == "foo"
@@ -33,8 +33,8 @@ include("../src/dynamo_dsl.jl")
 #            |_|
 
 function check_expression(expr, expected; attrs = Dict(), vals = Dict())
-    refs = refs_tracker()
-    @test expected == write_expression(refs, expr)
+    refs = DynamoDB.refs_tracker()
+    @test expected == DynamoDB.write_expression(refs, expr)
 
     @test refs.attrs == attrs
     @test refs.vals == vals
@@ -48,7 +48,7 @@ check_expression(attr("foo")[1], "#1[1]";
 check_expression(attr("foo", "bar")[1], "#1.#2[1]";
                  attrs = Dict("#1" => "foo", "#2" => "bar"), vals = Dict())
 
-check_expression(value_or_literal(1), ":1";
+check_expression(DynamoDB.value_or_literal(1), ":1";
                  attrs = Dict(), vals = Dict(":1" => Dict("N" => "1")))
 
 check_expression(size(attr("foo")), "size(#1)";
@@ -197,13 +197,13 @@ check_expression(and(no_conditions(), attr("foo") != 1), "(#1) <> (:2)";
 
 function check_updates(expr :: Array, expected;
                        attrs = Dict(), vals = Dict())
-    refs = refs_tracker()
-    @test expected == serialize_updates(expr, refs)
+    refs = DynamoDB.refs_tracker()
+    @test expected == DynamoDB.serialize_updates(expr, refs)
 
     @test refs.attrs == attrs
     @test refs.vals == vals
 end
-check_updates(x :: DynamoUpdateExpression, expected; attrs = Dict(), vals = Dict()) =
+check_updates(x :: DynamoDB.DynamoUpdateExpression, expected; attrs = Dict(), vals = Dict()) =
     check_updates([x], expected; attrs=attrs, vals=vals)
 
 
