@@ -48,6 +48,7 @@ immutable DynamoListElement <: DynamoReference
 end
 import Base.getindex
 getindex(attr :: DynamoReference, idx :: Int64) = DynamoListElement(attr, idx)
+getindex(attr :: DynamoReference, idx :: Int32) = DynamoListElement(attr, idx)
 
 
 immutable DynamoLiteralValue <: DynamoValue
