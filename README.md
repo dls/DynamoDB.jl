@@ -1,7 +1,10 @@
 # DynamoDB.jl
 
 Linux, OSX: [![Build Status](https://travis-ci.org/dls/DynamoDB.jl.svg?branch=master)](https://travis-ci.org/dls/DynamoDB.jl)
+
 Windows: [![Build status](https://ci.appveyor.com/api/projects/status/qwlfcnnx0i1cti11?svg=true)](https://ci.appveyor.com/project/dls/dynamodb-jl)
+
+(Windows support will be a while -- it's an issue loading the crypto shared object)
 
 [![codecov.io](http://codecov.io/github/dls/DynamoDB.jl/coverage.svg?branch=master)](http://codecov.io/github/dls/DynamoDB.jl?branch=master)
 
