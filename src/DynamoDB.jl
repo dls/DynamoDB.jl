@@ -21,7 +21,8 @@ include("dynamo_row_ops.jl")
 
 # core types for modeling dynamo tables/indexes
 export DynamoTable, DynamoLocalIndex, DynamoGlobalIndex,
-       dynamo_table, dynamo_local_index, dynamo_global_index
+       dynamo_table, dynamo_local_index, dynamo_global_index,
+       random_key
 
 # core operations
 export get_item, put_item, update_item, delete_item

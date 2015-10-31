@@ -179,7 +179,7 @@ function put_item(table :: DynamoTable, item; conditions=no_conditions() :: CEBo
     check_status(status, res)
 
     if return_old && haskey(res, "Attributes")
-        return load_row(table.ty, res["Attributes"]; is_old=true)
+        return load_row(table, res["Attributes"]; is_old=true)
     else
         return nothing
     end

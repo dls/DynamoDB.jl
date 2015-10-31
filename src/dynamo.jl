@@ -17,6 +17,7 @@
 # TODO -- optional whitelist and blacklist attribute values for persisting objects
 # TODO -- version columns + transactions -- perhaps in a higher level library?
 
+random_key() = string(Base.Random.uuid4())
 
 immutable DynamoTable
     ty :: Type
