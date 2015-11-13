@@ -7,7 +7,7 @@
 
 # NOTE TO READERS: These tests validate against the json generation
 # functions. For tests dealing directly with DynamoDB, check out the
-# integration test.
+# integration tests.
 
 
 ## GET_ITEM

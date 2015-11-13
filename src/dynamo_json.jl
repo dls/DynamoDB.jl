@@ -73,8 +73,8 @@ function value_from_attributes(hash :: Dict)
     elseif ty == "N"    ; return real_val(val)
     elseif ty == "S"    ; return val
     elseif ty == "L"    ; return [value_from_attributes(e) for e=val]
-    elseif ty == "NS"   ; return Set{Real}([value_from_attributes(e) for e=val])
-    elseif ty == "SS"   ; return Set{AbstractString}([value_from_attributes(e) for e=val])
+    elseif ty == "NS"   ; return Set{Real}(val)
+    elseif ty == "SS"   ; return Set{AbstractString}(val)
     elseif ty == "M"
         m = Dict{AbstractString, Any}()
         for (k, v)=val
