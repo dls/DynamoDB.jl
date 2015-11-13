@@ -23,9 +23,9 @@ attribute_value(x :: AbstractString) = Dict{AbstractString, Any}("S" => x)
 attribute_value(x :: Array) =
     Dict{AbstractString, Any}("L" => [attribute_value(e) for e=x])
 attribute_value{T <: Real}(x :: Set{T}) =
-    Dict{AbstractString, Any}("NS" => [attribute_value(e) for e=x])
+    Dict{AbstractString, Any}("NS" => [string(e) for e=x])
 attribute_value{T <: AbstractString}(x :: Set{T}) =
-    Dict{AbstractString, Any}("SS" => [attribute_value(e) for e=x])
+    Dict{AbstractString, Any}("SS" => [e for e=x])
 # TODO -- n-dimensional arrays
 
 function attribute_value(x :: Dict)
@@ -73,7 +73,7 @@ function value_from_attributes(hash :: Dict)
     elseif ty == "N"    ; return real_val(val)
     elseif ty == "S"    ; return val
     elseif ty == "L"    ; return [value_from_attributes(e) for e=val]
-    elseif ty == "NS"   ; return Set{Real}(val)
+    elseif ty == "NS"   ; return Set{Real}([float(e) for e=val])
     elseif ty == "SS"   ; return Set{AbstractString}(val)
     elseif ty == "M"
         m = Dict{AbstractString, Any}()

@@ -28,16 +28,16 @@
 res = DynamoDB.null_or_val(Set([1, 2, 3]))
 @test length(keys(res)) == 1
 @test length(res["NS"]) == 3
-@test contains(==, res["NS"], Dict("N" => "1"))
-@test contains(==, res["NS"], Dict("N" => "2"))
-@test contains(==, res["NS"], Dict("N" => "3"))
+@test contains(==, res["NS"], "1")
+@test contains(==, res["NS"], "2")
+@test contains(==, res["NS"], "3")
 
 res = DynamoDB.null_or_val(Set(["1", "2", "3"]))
 @test length(keys(res)) == 1
 @test length(res["SS"]) == 3
-@test contains(==, res["SS"], Dict("S" => "1"))
-@test contains(==, res["SS"], Dict("S" => "2"))
-@test contains(==, res["SS"], Dict("S" => "3"))
+@test contains(==, res["SS"], "1")
+@test contains(==, res["SS"], "2")
+@test contains(==, res["SS"], "3")
 
 @test DynamoDB.null_or_val(Dict("four" => 3, 7 => 11)) == Dict("M"=>Dict("four"=>Dict("N"=>"3"),"7"=>Dict("N"=>"11")))
 
