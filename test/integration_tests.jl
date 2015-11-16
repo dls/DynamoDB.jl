@@ -6,8 +6,8 @@ function task_to_array(task)
     arr
 end
 
-# note this is a feature, not a bug (I think)
-# AWS supports table (and even row level) permissions via IAM
+# These keys only give access to the JULIA_TESTING table. They are included on purpose.
+# See the bottom of this file for more information.
 const env = AWSEnv(;id="AKIAJE6VHSX64EMJUAJA", key="ktpHIUI2vfYSgXStr+NCy0HN8fHgQdw6SgvbhHky")
 
 # could also be done using a julia Type or Immutable if you prefer
