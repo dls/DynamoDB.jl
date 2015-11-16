@@ -80,21 +80,35 @@ function dynamo_execute(env, action, json_data; current_retry=0)
     body = JSON.json(json_data)
     amz_headers = signature_version_4(env, "dynamodb", "POST", host, action, body)
 
+    function retry(msg :: AbstractString)
+        if current_retry > 9
+            error("Request failed after 10 retries: $msg")
+        end
 
-    ro = HTTPC.RequestOptions(headers = amz_headers, request_timeout = env.timeout)
-    resp = HTTPC.post("https://$host/", body, ro)
+        sleep(2^current_retry * 0.05)
+        return dynamo_execute(env, action, json_data; current_retry=current_retry+1)
+    end
+
+    resp = nothing
+    try
+        ro = HTTPC.RequestOptions(headers = amz_headers, request_timeout = env.timeout)
+        resp = HTTPC.post("https://$host/", body, ro)
+    catch e
+        if isa(e, AbstractString)
+            if ismatch(r"((Couldn't connect to server)|(Couldn't resolve host name))", e)
+                @show :retry
+                return retry(e)
+            end
+        end
+        throw(e)
+    end
 
     status = resp.http_code
     value = JSON.parse(bytestring(resp.body))
 
     if status == 400
         if haskey(value, "__type") && ismatch(r"ProvisionedThroughputExceededException$", value["__type"])
-            if current_retry > 9
-                error("Request failed after 10 retries")
-            end
-
-            sleep(2^current_retry * 0.05)
-            return dynamo_execute(env, action, json_data; current_retry=current_retry+1)
+            return retry("ProvisionedThroughputExceededException")
         end
     end
 
