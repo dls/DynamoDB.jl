@@ -42,8 +42,14 @@ function signature_version_4(env, service, method, host, action, payload)
     # Task 1: canonical request
     canonical_uri = "/"
     canonical_querystring = ""
-    canonical_headers = "host:" * host * "\n" * "x-amz-date:" * amzdate * "\n" * "x-amz-target:DynamoDB_20120810.$action" * "\n"
-    signed_headers = "host;x-amz-date;x-amz-target"
+    canonical_headers = "host:" * host * "\n" * "x-amz-date:" * amzdate * "\n"
+    signed_headers = "host;x-amz-date"
+    if env.aws_token != ""
+        canonical_headers = canonical_headers * "x-amz-security-token:" * env.aws_token * "\n"
+        signed_headers = signed_headers * ";x-amz-security-token"
+    end
+    canonical_headers = canonical_headers * "x-amz-target:DynamoDB_20120810.$action" * "\n"
+    signed_headers = signed_headers * ";x-amz-target"
     payload_hash = bytes2hex(Crypto.sha256(payload))
 
     canonical_request = method * "\n" * canonical_uri * "\n" * "" * "\n" *
@@ -68,6 +74,9 @@ function signature_version_4(env, service, method, host, action, payload)
                "Host" => host,
                "Content-Type" => "application/x-amz-json-1.0",
                "X-Amz-Target" => "DynamoDB_20120810.$action")
+    if env.aws_token != ""
+        headers["x-amz-security-token"] = env.aws_token
+    end
 
     return headers
 end
