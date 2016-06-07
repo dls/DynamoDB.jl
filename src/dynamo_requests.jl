@@ -63,19 +63,18 @@ function signature_version_4(env, service, method, host, action, payload)
     authorization_header = algorithm * " " * "Credential=" * env.aws_id * "/" * credential_scope * ", " *
         "SignedHeaders=" * signed_headers * ", " * "Signature=" * signature
 
-    headers = [("Authorization", authorization_header),
-               ("X-Amz-Date", amzdate),
-               ("Host", host),
-               ("Content-Type", "application/x-amz-json-1.0"),
-               ("X-Amz-Target", "DynamoDB_20120810.$action")]
+    headers = Dict("Authorization" => authorization_header,
+               "X-Amz-Date" => amzdate,
+               "Host" => host,
+               "Content-Type" => "application/x-amz-json-1.0",
+               "X-Amz-Target" => "DynamoDB_20120810.$action")
 
     return headers
 end
 
 
 function dynamo_execute(env, action, json_data; current_retry=0)
-    host_base = replace(env.ep_host, r"^ec2.", "")
-    host = "dynamodb.$(host_base)"
+    host = "dynamodb.$(env.region).amazonaws.com"
 
     body = JSON.json(json_data)
     amz_headers = signature_version_4(env, "dynamodb", "POST", host, action, body)
@@ -91,8 +90,7 @@ function dynamo_execute(env, action, json_data; current_retry=0)
 
     resp = nothing
     try
-        ro = HTTPC.RequestOptions(headers = amz_headers, request_timeout = env.timeout)
-        resp = HTTPC.post("https://$host/", body, ro)
+        resp = Requests.post("https://$host/"; data=body, headers=amz_headers, timeout=env.timeout)
     catch e
         if isa(e, AbstractString)
             if ismatch(r"((Couldn't connect to server)|(Couldn't resolve host name))", e)
@@ -103,8 +101,8 @@ function dynamo_execute(env, action, json_data; current_retry=0)
         throw(e)
     end
 
-    status = resp.http_code
-    value = JSON.parse(bytestring(resp.body))
+    status = resp.status
+    value = JSON.parse(bytestring(resp.data))
 
     if status == 400
         if haskey(value, "__type") && ismatch(r"ProvisionedThroughputExceededException$", value["__type"])

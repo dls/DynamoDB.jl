@@ -3,7 +3,7 @@
 module DynamoDB
 
 using AWS
-using HTTPClient.HTTPC
+using Requests
 import JSON
 
 include("crypto.jl")
