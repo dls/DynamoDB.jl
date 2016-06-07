@@ -74,8 +74,7 @@ end
 
 
 function dynamo_execute(env, action, json_data; current_retry=0)
-    host_base = replace(env.ep_host, r"^ec2.", "")
-    host = "dynamodb.$(host_base)"
+    host = "dynamodb.$(env.region).amazonaws.com"
 
     body = JSON.json(json_data)
     amz_headers = signature_version_4(env, "dynamodb", "POST", host, action, body)
