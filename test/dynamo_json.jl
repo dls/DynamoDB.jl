@@ -85,6 +85,6 @@ check_round_trip(Set(["1", "2", "3"]))
 @test DynamoDB.value_from_attributes(DynamoDB.null_or_val(Dict("four" => 3, 7 => 11))) == Dict("four" => 3, "7" => 11)
 @test DynamoDB.value_from_attributes(DynamoDB.null_or_val(Foo(3, "fourty"))) == Dict("a"=>3,"b"=>"fourty")
 
-res = DynamoDB.value_from_attributes(Foo, DynamoDB.null_or_val(Foo(3, "fourty")))
+res = DynamoDB.value_from_attributes(Foo, DynamoDB.null_or_val(Foo(3, "fourty"))["M"])
 @test res.a == 3
 @test res.b == "fourty"

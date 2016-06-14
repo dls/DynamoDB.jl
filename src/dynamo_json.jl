@@ -91,7 +91,6 @@ function value_from_attributes(ty :: Type, typed_json :: Dict)
         return value_from_attributes(Dict("M" => typed_json))
     end
 
-    vals = value_from_attributes(typed_json)
-    init_vals = [vals[string(e)] for e=fieldnames(ty)]
+    init_vals = [value_from_attributes(typed_json[string(e)]) for e=fieldnames(ty)]
     ty(init_vals...)
 end
