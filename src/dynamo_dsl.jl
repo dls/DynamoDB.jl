@@ -34,9 +34,13 @@ attr(name :: AbstractString) = attribute(name)
 attr(name :: Symbol) = attribute(name)
 
 
+# short-circuit nested attribute construction
+attr(name :: DynamoReference) = name
+
+
 # a reference to dynamo sub-documents... eg "foo.bar" in {foo => {bar => 3}}
 immutable NestedDynamoAttribute <: DynamoReference
-    attrs :: Array{DynamoAttribute}
+    attrs :: Array{DynamoReference}
 end
 attribute(names...) = NestedDynamoAttribute([attr(e) for e=names])
 attr(names...) = attribute(names...)
