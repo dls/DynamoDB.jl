@@ -48,6 +48,9 @@ check_expression(attr("foo")[1], "#1[1]";
 check_expression(attr("foo", "bar")[1], "#1.#2[1]";
                  attrs = Dict("#1" => "foo", "#2" => "bar"), vals = Dict())
 
+check_expression(attr(attr("foo", "bar")[1], "baz"), "#1.#2[1].#3";
+                 attrs = Dict("#1" => "foo", "#2" => "bar", "#3" => "baz"), vals = Dict())
+
 check_expression(DynamoDB.value_or_literal(1), ":1";
                  attrs = Dict(), vals = Dict(":1" => Dict("N" => "1")))
 
