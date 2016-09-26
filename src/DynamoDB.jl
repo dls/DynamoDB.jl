@@ -2,6 +2,7 @@
 
 module DynamoDB
 
+using Compat
 using AWS
 using Requests
 import JSON
