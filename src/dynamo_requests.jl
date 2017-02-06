@@ -111,7 +111,7 @@ function dynamo_execute(env, action, json_data; current_retry=0)
     end
 
     status = resp.status
-    value = JSON.parse(bytestring(resp.data))
+    value = JSON.parse(String(copy(resp.data)))
 
     if status == 400
         if haskey(value, "__type") && ismatch(r"ProvisionedThroughputExceededException$", value["__type"])

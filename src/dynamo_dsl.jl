@@ -185,7 +185,7 @@ immutable CENot <: CEBoolean
     exp
 end
 
-import Base.!
+import Base.(!)
 !(exp :: CEBoolean) = CENot(exp)
 !(exp :: DynamoAttribute) = CENot(exp)
 not(exp :: CEBoolean) = CENot(exp)
